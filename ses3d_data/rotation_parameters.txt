@@ -1,0 +1,5 @@
+rotation angle [deg] (57.5 deg for Europe)
+0.00
+components of rotation vector, nx, ny, nz
+0.0 1.0 0.0
+
