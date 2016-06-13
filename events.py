@@ -143,3 +143,33 @@ class STF(obspy.core.trace.Trace):
             plt.title('source time function (frequency domain)')
         plt.show()
         return
+    
+class ses3dCatalog(obspy.core.event.Catalog):
+    
+    def add_event(self, longitude, latitude, depth, event_type='earthquake', focalmechanism=None):
+        origin=obspy.core.event.origin.Origin(longitude=longitude, latitude=latitude, depth=depth)
+        event=obspy.core.event.event.Event(origins=[origin], event_type=event_type, focal_mechanisms=[focalmechanism])
+        self.append(event)
+        return
+    
+    
+    def add_explosion(self, longitude, latitude, depth, m0):
+        tensor = obspy.core.event.source.Tensor(m_rr=m0, m_tt=m0, m_pp=m0,
+                                                 m_tp=0., m_rt=0., m_rp=0.)
+        moment_tensor = obspy.core.event.source.MomentTensor(tensor=tensor, scalar_moment=m0)
+        FocalMech = obspy.core.event.source.FocalMechanism(moment_tensor=moment_tensor)
+        self.add_event(longitude=longitude, latitude=latitude, depth=depth, event_type='explosion', focalmechanism=FocalMech)
+        return
+    
+    def add_earthquake(self, longitude, latitude, depth, m_rr, m_tt, m_pp, m_tp, m_rt, m_rp):
+        tensor = obspy.core.event.source.Tensor(m_rr=m_rr, m_tt=m_tt, m_pp=m_pp,
+                                                 m_tp=m_tp, m_rt=m_rt, m_rp=m_rp)
+        moment_tensor = obspy.core.event.source.MomentTensor(tensor=tensor)
+        FocalMech = obspy.core.event.source.FocalMechanism(moment_tensor=moment_tensor)
+        self.add_event(longitude=longitude, latitude=latitude, depth=depth, focalmechanism=FocalMech)
+        return
+    
+    def write4ses3d(self, outdir):
+        eventlst=outdir+'/event_list'
+        
+        
