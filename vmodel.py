@@ -3,7 +3,8 @@ import numpy.random as rd
 import matplotlib.pyplot as plt
 import os
 from lasif import rotations
-
+from lasif import colors
+import colormaps
 
 
 
@@ -644,7 +645,7 @@ class ses3d_model(object):
     #########################################################################
     #- read a 3D model
     #########################################################################
-    def read(self, directory, filename, verbose=False):
+    def read_block(self, directory, verbose=False):
         """ read an ses3d model from a file
         read(self, directory, filename, verbose=False):
         """
@@ -696,24 +697,7 @@ class ses3d_model(object):
                 self.m[k].lat_rot, self.m[k].lon_rot = np.meshgrid(self.m[k].lat, self.m[k].lon) ### Why meshgrid ???
                 self.m[k].lat_rot = self.m[k].lat_rot.T
                 self.m[k].lon_rot = self.m[k].lon_rot.T
-
-    def read_model(self, directory, filename, verbose=False):
-        #- read model volume ==================================================
-        fid_m=open(directory+'/'+filename,'r')
-        if verbose==True:
-            print 'read model file: '+directory+'/'+filename
-        v=np.array(fid_m.read().strip().split('\n'),dtype=float)
-        fid_m.close()
-        #- assign values ======================================================
-        idx=1
-        for k in np.arange(self.nsubvol):
-            n = int(v[idx])
-            nx = len(self.m[k].lat)-1
-            ny = len(self.m[k].lon)-1
-            nz = len(self.m[k].r)-1
-            self.m[k].v = v[(idx+1):(idx+1+n)].reshape(nx, ny, nz)
-            idx = idx+n+1
-        #- decide on global or regional model==================================
+        #- decide on global or regional model =======================================
         self.lat_min=90.0
         self.lat_max=-90.0
         self.lon_min=180.0
@@ -731,6 +715,66 @@ class ses3d_model(object):
             self.global_regional = "regional"
             self.d_lat=5.0
             self.d_lon=5.0
+        return
+    
+    def write_block(self, directory, verbose=False):
+        """ read an ses3d model from a file
+        read(self, directory, filename, verbose=False):
+        """
+        #- write block files ====================================================
+        fid_x=open(directory+'/block_x','w')
+        fid_y=open(directory+'/block_y','w')
+        fid_z=open(directory+'/block_z','w')
+        if verbose==True:
+            print 'write block files:'
+            print '\t '+directory+'/block_x'
+            print '\t '+directory+'/block_y'
+            print '\t '+directory+'/block_z'
+        ###
+        # dx, dy, dz : x, y, z data in block_x/y/z
+        ###
+        fid_x.write(str(self.nsubvol)+'\n')
+        fid_y.write(str(self.nsubvol)+'\n')
+        fid_z.write(str(self.nsubvol)+'\n')
+        for k in xrange(self.nsubvol):
+            subvol=self.m[k]
+            fid_x.write(str(int(subvol.lat.size))+'\n')
+            fid_y.write(str(int(subvol.lon.size))+'\n')
+            fid_z.write(str(int(subvol.r.size))+'\n')
+            for i in xrange(subvol.lat.size):
+                fid_x.write(str(float(90. - subvol.lat[i]))+'\n')
+            for i in xrange(subvol.lon.size):
+                fid_y.write(str(float(subvol.lon[i]))+'\n')
+            for i in xrange(subvol.r.size):
+                fid_z.write(str(float(subvol.r[i]))+'\n')
+        fid_x.close()
+        fid_y.close()
+        fid_z.close()
+        return
+    
+    def read_model(self, directory, filename, verbose=False):
+        #- read model volume ==================================================
+        fid_m=open(directory+'/'+filename,'r')
+        if verbose==True:
+            print 'read model file: '+directory+'/'+filename
+        v=np.array(fid_m.read().strip().split('\n'),dtype=float)
+        fid_m.close()
+        #- assign values ======================================================
+        idx=1
+        for k in np.arange(self.nsubvol):
+            n = int(v[idx])
+            nx = len(self.m[k].lat)-1
+            ny = len(self.m[k].lon)-1
+            nz = len(self.m[k].r)-1
+            if filename=='dvsv':
+                self.m[k].dvsv = v[(idx+1):(idx+1+n)].reshape(nx, ny, nz)
+            if filename=='dvsh':
+                self.m[k].dvsh = v[(idx+1):(idx+1+n)].reshape(nx, ny, nz)
+            if filename=='drho':
+                self.m[k].drho = v[(idx+1):(idx+1+n)].reshape(nx, ny, nz)
+            if filename=='dvp':
+                self.m[k].dvp = v[(idx+1):(idx+1+n)].reshape(nx, ny, nz)
+            idx = idx+n+1
         return
     
     #########################################################################
@@ -759,117 +803,47 @@ class ses3d_model(object):
                 ny=len(self.m[k].lon)-1
                 nz=len(self.m[k].r)-1
                 fid_m.write(str(nx*ny*nz)+'\n')
-                # np.savetxt(fid_m, self.m[k].v, fmt='%g')
+                if filename=='dvsv':
+                    v = self.m[k].dvsv 
+                if filename=='dvsh':
+                    v = self.m[k].dvsh 
+                if filename=='drho':
+                    v = self.m[k].drho 
+                if filename=='dvp':
+                    v = self.m[k].dvp 
                 for idx in np.arange(nx):
                     for idy in np.arange(ny):
                         for idz in np.arange(nz):
-                            fid_m.write(str(self.m[k].v[idx,idy,idz])+'\n')
+                            fid_m.write(str(v[idx,idy,idz])+'\n')
         return
-
-    def write(self, directory, filename, verbose=False):
-        """ read an ses3d model from a file
-        read(self, directory, filename, verbose=False):
-        """
-        #- read block files ====================================================
-        fid_x=open(directory+'/block_x','w')
-        fid_y=open(directory+'/block_y','w')
-        fid_z=open(directory+'/block_z','w')
-        if verbose==True:
-            print 'write block files:'
-            print '\t '+directory+'/block_x'
-            print '\t '+directory+'/block_y'
-            print '\t '+directory+'/block_z'
-        ###
-        # dx, dy, dz : x, y, z data in block_x/y/z
-        ###
-        fid_x.write(str(self.nsubvol)+'\n')
-        fid_y.write(str(self.nsubvol)+'\n')
-        fid_z.write(str(self.nsubvol)+'\n')
-            for k in np.arange(self.nsubvol):
-                nx=len(self.m[k].lat)-1
-                ny=len(self.m[k].lon)-1
-                nz=len(self.m[k].r)-1
-                fid_m.write(str(nx*ny*nz)+'\n')
-                # np.savetxt(fid_m, self.m[k].v, fmt='%g')
-                for idx in np.arange(nx):
-                    for idy in np.arange(ny):
-                        for idz in np.arange(nz):
-                            fid_m.write(str(self.m[k].v[idx,idy,idz])+'\n')
-        dx=np.array(fid_x.read().strip().split('\n'),dtype=float)
-        dy=np.array(fid_y.read().strip().split('\n'),dtype=float)
-        dz=np.array(fid_z.read().strip().split('\n'),dtype=float)
-        fid_x.close()
-        fid_y.close()
-        fid_z.close()
-        #- read coordinate lines ===============================================
-        self.nsubvol=int(dx[0])
-        if verbose==True:
-            print 'number of subvolumes: '+str(self.nsubvol)
-        ###
-        # idx, idy, idz : index for the first element in each subvolume
-        ###
-        idx=np.ones(self.nsubvol, dtype=int)
-        idy=np.ones(self.nsubvol, dtype=int)
-        idz=np.ones(self.nsubvol, dtype=int)
-        for k in np.arange(1, self.nsubvol, dtype=int):
-            idx[k]=int( dx[idx[k-1]] )+idx[k-1]+1
-            idy[k]=int( dy[idy[k-1]] )+idy[k-1]+1
-            idz[k]=int( dz[idz[k-1]] )+idz[k-1]+1
-        for k in np.arange(self.nsubvol, dtype=int):
-            subvol=ses3d_submodel()
-            subvol.lat=90.0-dx[(idx[k]+1):(idx[k]+1+dx[idx[k]])]
-            subvol.lon=dy[(idy[k]+1):(idy[k]+1+dy[idy[k]])]
-            subvol.r  =dz[(idz[k]+1):(idz[k]+1+dz[idz[k]])]
-            self.m.append(subvol)
-        #- compute rotated version of the coordinate lines ====================
-        if self.phi!=0.0:
-            for k in np.arange(self.nsubvol, dtype=int):
-                self.m[k].lat_rot, self.m[k].lon_rot \
-                          = rotations.rotate_lat_lon(self.m[k].lat, self.m[k].lon, self.n, self.phi)
-        else:
-            for k in np.arange(self.nsubvol,dtype=int):
-                self.m[k].lat_rot, self.m[k].lon_rot = np.meshgrid(self.m[k].lat, self.m[k].lon) ### Why meshgrid ???
-                self.m[k].lat_rot = self.m[k].lat_rot.T
-                self.m[k].lon_rot = self.m[k].lon_rot.T
-        #- read model volume ==================================================
-        fid_m=open(directory+'/'+filename,'r')
-        if verbose==True:
-            print 'read model file: '+directory+'/'+filename
-        v=np.array(fid_m.read().strip().split('\n'),dtype=float)
-        fid_m.close()
-        #- assign values ======================================================
-        idx=1
-        for k in np.arange(self.nsubvol):
-            n = int(v[idx])
-            nx = len(self.m[k].lat)-1
-            ny = len(self.m[k].lon)-1
-            nz = len(self.m[k].r)-1
-            self.m[k].v = v[(idx+1):(idx+1+n)].reshape(nx, ny, nz)
-            idx = idx+n+1
-        #- decide on global or regional model==================================
-        self.lat_min=90.0
-        self.lat_max=-90.0
-        self.lon_min=180.0
-        self.lon_max=-180.0
-        for k in np.arange(self.nsubvol):
-            if np.min(self.m[k].lat_rot) < self.lat_min: self.lat_min = np.min(self.m[k].lat_rot)
-            if np.max(self.m[k].lat_rot) > self.lat_max: self.lat_max = np.max(self.m[k].lat_rot)
-            if np.min(self.m[k].lon_rot) < self.lon_min: self.lon_min = np.min(self.m[k].lon_rot)
-            if np.max(self.m[k].lon_rot) > self.lon_max: self.lon_max = np.max(self.m[k].lon_rot)
-        if ((self.lat_max-self.lat_min) > 90.0 or (self.lon_max-self.lon_min) > 90.0):
-            self.global_regional = "global"
-            self.lat_centre = (self.lat_max+self.lat_min)/2.0
-            self.lon_centre = (self.lon_max+self.lon_min)/2.0
-        else:
-            self.global_regional = "regional"
-            self.d_lat=5.0
-            self.d_lon=5.0
+    
+    def read(self, directory, verbose=True):
+        print '====================================================='
+        self.read_block(directory=directory, verbose=verbose)
+        self.read_model(directory=directory, filename='dvsv', verbose=verbose)
+        self.read_model(directory=directory, filename='dvsh', verbose=verbose)
+        self.read_model(directory=directory, filename='drho', verbose=verbose)
+        self.read_model(directory=directory, filename='dvp', verbose=verbose)
+        print '====================================================='
         return
+    
+    def write(self, directory, verbose=True):
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+        print '====================================================='
+        self.write_block(directory=directory, verbose=verbose)
+        self.write_model(directory=directory, filename='dvsv', verbose=verbose)
+        self.write_model(directory=directory, filename='dvsh', verbose=verbose)
+        self.write_model(directory=directory, filename='drho', verbose=verbose)
+        self.write_model(directory=directory, filename='dvp', verbose=verbose)
+        print '====================================================='
+        return
+    
     
     #########################################################################
     #- Compute the L2 norm.
     #########################################################################
-    def norm(self):
+    def norm(self, modelname):
         N=0.0
         #- Loop over subvolumes. ----------------------------------------------
         for n in np.arange(self.nsubvol):
@@ -878,40 +852,34 @@ class ses3d_model(object):
             ny=len(self.m[n].lon)-1
             nz=len(self.m[n].r)-1
             #- Compute volume elements.
-            dV=np.zeros(np.shape(self.m[n].v))
+            if modelname == 'dvsv':
+                v = self.m[n].dvsv 
+            if modelname == 'dvsh':
+                v = self.m[n].dvsh 
+            if modelname == 'drho':
+                v = self.m[n].drho 
+            if modelname == 'dvp':
+                v = self.m[n].dvp 
+            dV=np.zeros(np.shape(v))
             theta=(90.0-self.m[n].lat)*np.pi/180.0
             dr=self.m[n].r[1]-self.m[n].r[0]
             dphi=(self.m[n].lon[1]-self.m[n].lon[0])*np.pi/180.0
             dtheta=theta[1]-theta[0]
             for idx in np.arange(nx):
-                  for idy in np.arange(ny):
-                      for idz in np.arange(nz):
-                          dV[idx,idy,idz]=theta[idx]*(self.m[n].r[idz])**2
+                for idy in np.arange(ny):
+                    for idz in np.arange(nz):
+                        dV[idx,idy,idz]=theta[idx]*(self.m[n].r[idz])**2
             dV=dr*dtheta*dphi*dV
             #- Integrate.
-            N+=np.sum(dV*(self.m[n].v)**2)
+            N+=np.sum(dV*(v)**2)
         #- Finish. ------------------------------------------------------------
         return np.sqrt(N)
-    #########################################################################
-    #- Remove the upper percentiles of a model.
-    #########################################################################
-    def clip_percentile(self, percentile):
-        """
-        Clip the upper percentiles of the model. Particularly useful to remove the singularities in sensitivity kernels.
-        """
-        #- Loop over subvolumes to find the percentile.
-        percentile_list=[]
-        for n in np.arange(self.nsubvol):
-            percentile_list.append(np.percentile(np.abs(self.m[n].v), percentile))
-        percent=np.max(percentile_list)
-        #- Clip the values above the percentile.
-        for n in np.arange(self.nsubvol):
-            idx=np.nonzero(np.greater(np.abs(self.m[n].v),percent))
-            self.m[n].v[idx]=np.sign(self.m[n].v[idx])*percent
+    
+        
     #########################################################################
     #- Apply horizontal smoothing.
     #########################################################################
-    def smooth_horizontal(self, sigma, filter_type='gauss'):
+    def smooth_horizontal(self, sigma, modelname, filter_type='gauss'):
         """
         smooth_horizontal(self,sigma,filter='gauss')
         Experimental function for smoothing in horizontal directions.
@@ -923,7 +891,15 @@ class ses3d_model(object):
         """
         #- Loop over subvolumes.---------------------------------------------------
         for n in np.arange(self.nsubvol):
-            v_filtered=self.m[n].v
+            if modelname == 'dvsv':
+                v_filtered = self.m[n].dvsv 
+            if modelname == 'dvsh':
+                v_filtered = self.m[n].dvsh 
+            if modelname == 'drho':
+                v_filtered = self.m[n].drho 
+            if modelname == 'dvp':
+                v_filtered = self.m[n].dvp
+            v = np.copy(v_filtered)
             #- Size of the array.
             nx=len(self.m[n].lat)-1
             ny=len(self.m[n].lon)-1
@@ -966,22 +942,28 @@ class ses3d_model(object):
                 for i in np.arange(dn+1,nx-dn-1):
                     for j in np.arange(dn+1,ny-dn-1):
                         for k in np.arange(nz):
-                            v_filtered[i,j,k]=np.sum(self.m[n].v[i-dn:i+dn,j-dn:j+dn,k]*G*dV)
+                            v_filtered[i,j,k]=np.sum(v[i-dn:i+dn,j-dn:j+dn,k]*G*dV)
             #- Smoothing by averaging over neighbouring cells. ----------------------
             elif filter_type=='neighbour':
                 for iteration in np.arange(int(sigma)):
                     for i in np.arange(1,nx-1):
                         for j in np.arange(1,ny-1):
-                            v_filtered[i,j,:]=(self.m[n].v[i,j,:]+self.m[n].v[i+1,j,:]+self.m[n].v[i-1,j,:]\
-                                +self.m[n].v[i,j+1,:]+self.m[n].v[i,j-1,:])/5.0
-            self.m[n].v=v_filtered
+                            v_filtered[i,j,:]=(v[i,j,:]+v[i+1,j,:]+v[i-1,j,:]+v[i,j+1,:]+v[i,j-1,:])/5.0
+            # if modelname=='dvsv':
+            #     self.m[n].dvsv = v_filtered
+            # if modelname=='dvsh':
+            #     self.m[n].dvsh = v_filtered
+            # if modelname=='drho':
+            #     self.m[n].drho = v_filtered
+            # if modelname=='dvp':
+            #     self.m[n].dvp = v_filtered
         return
         
     
     #########################################################################
     #- Apply horizontal smoothing with adaptive smoothing length.
     #########################################################################
-    def smooth_horizontal_adaptive(self,sigma):
+    def smooth_horizontal_adaptive(self, sigma):
         #- Find maximum smoothing length. -------------------------------------
         sigma_max=[]
         for n in np.arange(self.nsubvol):
@@ -1287,11 +1269,12 @@ class ses3d_model(object):
         #- clean up
         fid.close()
         return
+    
     #########################################################################
     #- plot horizontal slices
     #########################################################################
-    def plot_slice(self, depth, min_val_plot=None, max_val_plot=None, colormap='tomo', res='i', save_under=None, verbose=False, \
-                   mapfactor=2, maxlon=None, minlon=None, maxlat=None, minlat=None, geopolygons=[]):
+    def plot_slice(self, depth, modelname, min_val_plot=None, max_val_plot=None, colormap='tomo', res='i', save_under=None, \
+                verbose=False, mapfactor=2, maxlon=None, minlon=None, maxlat=None, minlat=None, geopolygons=[]):
         """ plot horizontal slices through an ses3d model
         plot_slice(self,depth,colormap='tomo',res='i',save_under=None,verbose=False)
         depth=depth in km of the slice
@@ -1303,9 +1286,10 @@ class ses3d_model(object):
         # ax=plt.subplot(111)
         #- set up a map and colourmap -----------------------------------------
         if self.global_regional=='regional':
-            m=Basemap(projection='merc',llcrnrlat=self.lat_min,urcrnrlat=self.lat_max,llcrnrlon=self.lon_min,urcrnrlon=self.lon_max,lat_ts=20,resolution=res)
-            m.drawparallels(np.arange(self.lat_min,self.lat_max,self.d_lon),labels=[1,0,0,1])
-            m.drawmeridians(np.arange(self.lon_min,self.lon_max,self.d_lat),labels=[1,0,0,1])
+            m=Basemap(projection='merc', llcrnrlat=self.lat_min, urcrnrlat=self.lat_max, llcrnrlon=self.lon_min,
+                      urcrnrlon=self.lon_max, lat_ts=20, resolution=res)
+            m.drawparallels(np.arange(self.lat_min,self.lat_max,self.d_lon), labels=[1,0,0,1])
+            m.drawmeridians(np.arange(self.lon_min,self.lon_max,self.d_lat), labels=[1,0,0,1])
         elif self.global_regional=='global':
             self.lat_centre = (self.lat_max+self.lat_min)/2.0
             self.lon_centre = (self.lon_max+self.lon_min)/2.0
@@ -1316,7 +1300,6 @@ class ses3d_model(object):
             m1 = Basemap(projection='ortho', lon_0=self.lon_min, lat_0=self.lat_min, resolution='l')
             m = Basemap(projection='ortho', lon_0=self.lon_min,lat_0=self.lat_min, resolution=res,\
                 llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
-            
             m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
             # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
@@ -1327,13 +1310,17 @@ class ses3d_model(object):
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         # m.drawlsmask(land_color='0.8', ocean_color='#99ffff')
         m.drawmapboundary(fill_color="white")
+        
+        # my_colormap = colors.get_colormap('tomo_full_scale_linear_lightness')
         if colormap=='tomo':
-            my_colormap=make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0],\
+            my_colormap=colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0],\
                 0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92], 0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], \
                 0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
         elif colormap=='mono':
-            my_colormap=make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
+            my_colormap=colormaps.make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
+            
         #- loop over subvolumes to collect information ------------------------
+        # continue here
         x_list=[]
         y_list=[]
         idz_list=[]
@@ -1343,7 +1330,7 @@ class ses3d_model(object):
             ny=len(self.m[k].lon)
             r=self.m[k].r
             #- collect subvolumes within target depth
-            if (max(r)>=radius) & (min(r)<radius):
+            if (r.max()>=radius) & (min(r)<radius):
                 N_list.append(k)
                 r=r[0:len(r)-1]
                 idz=min(np.where(min(np.abs(r-radius))==np.abs(r-radius))[0])
@@ -1351,7 +1338,7 @@ class ses3d_model(object):
                 idz_list.append(idz)
                 if verbose==True:
                     print 'true plotting depth: '+str(6371.0-r[idz])+' km'
-                x,y=m(self.m[k].lon_rot[0:nx-1,0:ny-1]+0.25,self.m[k].lat_rot[0:nx-1,0:ny-1]-0.25)
+                x, y=m(self.m[k].lon_rot[0:nx-1,0:ny-1]+0.25, self.m[k].lat_rot[0:nx-1,0:ny-1]-0.25)
                 # x,y=m(self.m[k].lon_rot[0:nx-1,0:ny-1],self.m[k].lat_rot[0:nx-1,0:ny-1])
                 x_list.append(x)
                 y_list.append(y)
@@ -1381,7 +1368,8 @@ class ses3d_model(object):
             geopolygons.PlotPolygon(mybasemap=m)
         #- loop over subvolumes to plot ---------------------------------------
         for k in np.arange(len(N_list)):
-            im=m.pcolormesh(x_list[k],y_list[k],self.m[N_list[k]].v[:,:,idz_list[k]], shading='gouraud', cmap=my_colormap,vmin=min_val_plot,vmax=max_val_plot)
+            im=m.pcolormesh(x_list[k], y_list[k],self.m[N_list[k]].v[:,:,idz_list[k]],
+                    shading='gouraud', cmap=my_colormap,vmin=min_val_plot,vmax=max_val_plot)
             # im=m.imshow(self.m[N_list[k]].v[:,:,idz_list[k]], cmap=my_colormap,vmin=min_val_plot,vmax=max_val_plot)
           #if colormap=='mono':
             #cs=m.contour(x_list[k],y_list[k],self.m[N_list[k]].v[:,:,idz_list[k]], colors='r',linewidths=1.0)
@@ -1392,29 +1380,29 @@ class ses3d_model(object):
         cb.set_label('km/sec', fontsize=20, rotation=90)
         # im.ax.tick_params(labelsize=20)
         plt.title(str(depth)+' km', fontsize=30)
-        
-        if minlon!=None and minlat!=None and maxlon!=None and maxlat!=None:
-            blon=np.arange(100)*(maxlon-minlon)/100.+minlon
-            blat=np.arange(100)*(maxlat-minlat)/100.+minlat
-            Blon=blon
-            Blat=np.ones(Blon.size)*minlat
-            x,y = m(Blon, Blat)
-            m.plot(x, y, 'b-', lw=3)
-            
-            Blon=blon
-            Blat=np.ones(Blon.size)*maxlat
-            x,y = m(Blon, Blat)
-            m.plot(x, y, 'b-', lw=3)
-            
-            Blon=np.ones(Blon.size)*minlon
-            Blat=blat
-            x,y = m(Blon, Blat)
-            m.plot(x, y, 'b-', lw=3)
-            
-            Blon=np.ones(Blon.size)*maxlon
-            Blat=blat
-            x,y = m(Blon, Blat)
-            m.plot(x, y, 'b-', lw=3)
+        # 
+        # if minlon!=None and minlat!=None and maxlon!=None and maxlat!=None:
+        #     blon=np.arange(100)*(maxlon-minlon)/100.+minlon
+        #     blat=np.arange(100)*(maxlat-minlat)/100.+minlat
+        #     Blon=blon
+        #     Blat=np.ones(Blon.size)*minlat
+        #     x,y = m(Blon, Blat)
+        #     m.plot(x, y, 'b-', lw=3)
+        #     
+        #     Blon=blon
+        #     Blat=np.ones(Blon.size)*maxlat
+        #     x,y = m(Blon, Blat)
+        #     m.plot(x, y, 'b-', lw=3)
+        #     
+        #     Blon=np.ones(Blon.size)*minlon
+        #     Blat=blat
+        #     x,y = m(Blon, Blat)
+        #     m.plot(x, y, 'b-', lw=3)
+        #     
+        #     Blon=np.ones(Blon.size)*maxlon
+        #     Blat=blat
+        #     x,y = m(Blon, Blat)
+        #     m.plot(x, y, 'b-', lw=3)
         
         # if len(geopolygons)!=0:
         #     geopolygons.PlotPolygon(mybasemap=m)
@@ -1425,6 +1413,7 @@ class ses3d_model(object):
         #     plt.savefig(save_under+'.png', format='png', dpi=200)
         #     plt.close()
         return
+    
     #########################################################################
     #- plot depth to a certain threshold value
     #########################################################################

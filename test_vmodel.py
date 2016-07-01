@@ -14,6 +14,9 @@ import domain
 
 
 smodel=vmodel.ses3d_model()
-# dx=smodel.read('/projects/life9360/code/ses3d_janus/MODELS_c/MODELS_3D', 'dvsv')
-smodel.read('/home/lili/code/ses3d_r07_b/MODELS/MODELS_3D',  'dvsv')
-smodel.write('.', 'dvsv_new', verbose=True)
+smodel.read('./MODELS_3D')
+smodel.write('./MODELS_3D_test')
+# smodel.read_block('./MODELS_3D')
+# smodel.write_block('.')
+# smodel.read_model('./MODELS_3D',  'dvp')
+# smodel.write_model('.', 'dvp', verbose=True)
