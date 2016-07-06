@@ -5,7 +5,7 @@ import os
 from lasif import rotations
 from lasif import colors
 import colormaps
-
+from mpl_toolkits.basemap import Basemap, shiftgrid
 
 
 ###################################################################################################
@@ -818,25 +818,25 @@ class ses3d_model(object):
         return
     
     def read(self, directory, verbose=True):
-        print '====================================================='
+        print '===================== Read ses3d block model ====================='
         self.read_block(directory=directory, verbose=verbose)
         self.read_model(directory=directory, filename='dvsv', verbose=verbose)
         self.read_model(directory=directory, filename='dvsh', verbose=verbose)
         self.read_model(directory=directory, filename='drho', verbose=verbose)
         self.read_model(directory=directory, filename='dvp', verbose=verbose)
-        print '====================================================='
+        print '============================================================'
         return
     
     def write(self, directory, verbose=True):
         if not os.path.isdir(directory):
             os.makedirs(directory)
-        print '====================================================='
+        print '===================== Write ses3d block model ====================='
         self.write_block(directory=directory, verbose=verbose)
         self.write_model(directory=directory, filename='dvsv', verbose=verbose)
         self.write_model(directory=directory, filename='dvsh', verbose=verbose)
         self.write_model(directory=directory, filename='drho', verbose=verbose)
         self.write_model(directory=directory, filename='dvp', verbose=verbose)
-        print '====================================================='
+        print '============================================================'
         return
     
     
@@ -949,25 +949,25 @@ class ses3d_model(object):
                     for i in np.arange(1,nx-1):
                         for j in np.arange(1,ny-1):
                             v_filtered[i,j,:]=(v[i,j,:]+v[i+1,j,:]+v[i-1,j,:]+v[i,j+1,:]+v[i,j-1,:])/5.0
-            # if modelname=='dvsv':
-            #     self.m[n].dvsv = v_filtered
-            # if modelname=='dvsh':
-            #     self.m[n].dvsh = v_filtered
-            # if modelname=='drho':
-            #     self.m[n].drho = v_filtered
-            # if modelname=='dvp':
-            #     self.m[n].dvp = v_filtered
         return
         
     
     #########################################################################
     #- Apply horizontal smoothing with adaptive smoothing length.
     #########################################################################
-    def smooth_horizontal_adaptive(self, sigma):
+    def smooth_horizontal_adaptive(self, modelname, sigma):
         #- Find maximum smoothing length. -------------------------------------
         sigma_max=[]
         for n in np.arange(self.nsubvol):
-            sigma_max.append(np.max(sigma.m[n].v))
+            if modelname=='dvsv':
+                v = sigma.m[n].dvsv 
+            if modelname=='dvsh':
+                v = sigma.m[n].dvsh 
+            if modelname=='drho':
+                v = sigma.m[n].drho 
+            if modelname=='dvp':
+                v = sigma.m[n].dvp 
+            sigma_max.append(v.max())
         #- Loop over subvolumes.-----------------------------------------------
         for n in np.arange(self.nsubvol):
             #- Size of the array.
@@ -983,7 +983,7 @@ class ses3d_model(object):
             nx_max=np.round(float(nx)/2.0)+dn
             ny_min=np.round(float(ny)/2.0)-dn
             ny_max=np.round(float(ny)/2.0)+dn
-            lon,colat=np.meshgrid(self.m[n].lon[ny_min:ny_max],90.0-self.m[n].lat[nx_min:nx_max],dtype=float)
+            lon,colat=np.meshgrid(self.m[n].lon[ny_min:ny_max], 90.0-self.m[n].lat[nx_min:nx_max],dtype=float)
             colat=np.pi*colat/180.0
             lon=np.pi*lon/180.0
             #- Volume element.
@@ -1006,68 +1006,32 @@ class ses3d_model(object):
             G=G/np.max(np.abs(G))
             G=r*np.arccos(G)
             #- Move the Gaussian across the field. ------------------------------
-            v_filtered=self.m[n].v
+            if modelname == 'dvsv':
+                v_filtered = self.m[n].dvsv
+                sigmaV = sigma.m[n].dvsv 
+            if modelname == 'dvsh':
+                v_filtered = self.m[n].dvsh
+                sigmaV = sigma.m[n].dvsh 
+            if modelname == 'drho':
+                v_filtered = self.m[n].drho
+                sigmaV = sigma.m[n].drho 
+            if modelname == 'dvp':
+                v_filtered = self.m[n].dvp
+                sigmaV = sigma.m[n].dvp 
+            v = np.copy(v_filtered)
             for i in np.arange(dn+1,nx-dn-1):
                 for j in np.arange(dn+1,ny-dn-1):
                     for k in np.arange(nz):
                         #- Compute the actual Gaussian.
-                        s=sigma.m[n].v[i,j,k]
+                        s=sigmaV[i, j, k]
                         if (s>0):
                             GG=np.exp(-0.5*G**2/s**2)/(2.0*np.pi*s**2)
                             #- Apply filter.
-                            v_filtered[i,j,k]=np.sum(self.m[n].v[i-dn:i+dn,j-dn:j+dn,k]*GG*dV)
-            self.m[n].v=v_filtered
-    #########################################################################
-    #- Compute relaxed velocities from velocities at 1 s reference period.
-    #########################################################################
-    def ref2relax(self, datadir, qmodel='cem', nrelax=3):
-        """
-        ref2relax(qmodel='cem', nrelax=3)
-        Assuming that the current velocity model is given at the reference period 1 s, 
-        ref2relax computes the relaxed velocities. They may then be written to a file.
-        For this conversion, the relaxation parameters from the relax file are taken.
-        Currently implemented Q models (qmodel): cem, prem, ql6 . 
-        nrelax is the number of relaxation mechnisms.
-        """
-        #- Read the relaxation parameters from the relax file. ----------------
-        tau_p=np.zeros(nrelax)
-        D_p=np.zeros(nrelax)
-        relaxfname=datadir+'/'+'relax'
-        fid=open(relaxfname,'r')
-        fid.readline()
-        for n in range(nrelax):
-            tau_p[n]=float(fid.readline().strip())
-        fid.readline()
-        for n in range(nrelax):
-            D_p[n]=float(fid.readline().strip())
-        fid.close()
-        #- Loop over subvolumes. ----------------------------------------------
-        for k in np.arange(self.nsubvol):
-            nx=len(self.m[k].lat)-1
-            ny=len(self.m[k].lon)-1
-            nz=len(self.m[k].r)-1
-            #- Loop over radius within the subvolume. ---------------------------
-            for idz in np.arange(nz):
-                #- Compute Q. -----------------------------------------------------
-                if qmodel=='cem':
-                  Q=q.q_cem(self.m[k].r[idz])
-                elif qmodel=='ql6':
-                  Q=q.q_ql6(self.m[k].r[idz])
-                elif qmodel=='prem':
-                  Q=q.q_prem(self.m[k].r[idz])
-                #- Compute A and B for the reference period of 1 s. ---------------
-                A=1.0
-                B=0.0
-                w=2.0*np.pi
-                tau=1.0/Q
-                for n in range(nrelax):
-                    A+=tau*D_p[n]*(w**2)*(tau_p[n]**2)/(1.0+(w**2)*(tau_p[n]**2))
-                    B+=tau*D_p[n]*w*tau_p[n]/(1.0+(w**2)*(tau_p[n]**2))
-                conversion_factor=(A+np.sqrt(A**2+B**2))/(A**2+B**2)
-                conversion_factor=np.sqrt(0.5*conversion_factor)
-                #- Correct velocities. --------------------------------------------
-                self.m[k].v[:,:,idz]=conversion_factor*self.m[k].v[:,:,idz]
+                            v_filtered[i,j,k]=np.sum(v[i-dn:i+dn,j-dn:j+dn,k]*GG*dV)
         return
+            # self.m[n].v=v_filtered
+    
+    
     #########################################################################
     #- convert to vtk format
     #########################################################################
@@ -1273,13 +1237,14 @@ class ses3d_model(object):
     #########################################################################
     #- plot horizontal slices
     #########################################################################
-    def plot_slice(self, depth, modelname, min_val_plot=None, max_val_plot=None, colormap='tomo', res='i', save_under=None, \
-                verbose=False, mapfactor=2, maxlon=None, minlon=None, maxlat=None, minlat=None, geopolygons=[]):
-        """ plot horizontal slices through an ses3d model
+    def plot_slice(self, depth, modelname, min_val_plot=None, max_val_plot=None, colormap='tomo', resolution='i', save_under=None, \
+                verbose=False, mapfactor=2, geopolygons=[]):
+        """
+        Plot horizontal slices through an ses3d model
         plot_slice(self,depth,colormap='tomo',res='i',save_under=None,verbose=False)
         depth=depth in km of the slice
         colormap='tomo','mono'
-        res=resolution of the map, admissible values are: c, l, i, h f
+        resolution=resolution of the map, admissible values are: c, l, i, h f
         save_under=save figure as *.png with the filename "save_under". Prevents plotting of the slice.
         """
         radius=6371.0-depth
@@ -1287,23 +1252,25 @@ class ses3d_model(object):
         #- set up a map and colourmap -----------------------------------------
         if self.global_regional=='regional':
             m=Basemap(projection='merc', llcrnrlat=self.lat_min, urcrnrlat=self.lat_max, llcrnrlon=self.lon_min,
-                      urcrnrlon=self.lon_max, lat_ts=20, resolution=res)
+                      urcrnrlon=self.lon_max, lat_ts=20, resolution=resolution)
             m.drawparallels(np.arange(self.lat_min,self.lat_max,self.d_lon), labels=[1,0,0,1])
             m.drawmeridians(np.arange(self.lon_min,self.lon_max,self.d_lat), labels=[1,0,0,1])
+        
         elif self.global_regional=='global':
             self.lat_centre = (self.lat_max+self.lat_min)/2.0
             self.lon_centre = (self.lon_max+self.lon_min)/2.0
-            m=Basemap(projection='ortho',lon_0=self.lon_centre, lat_0=self.lat_centre, resolution=res)
+            m=Basemap(projection='ortho',lon_0=self.lon_centre, lat_0=self.lat_centre, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
             m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])
+        
         elif self.global_regional=='regional_ortho':
-            m1 = Basemap(projection='ortho', lon_0=self.lon_min, lat_0=self.lat_min, resolution='l')
-            m = Basemap(projection='ortho', lon_0=self.lon_min,lat_0=self.lat_min, resolution=res,\
+            m = Basemap(projection='ortho', lon_0=self.lon_min,lat_0=self.lat_min, resolution=resolution,\
                 llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
             m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
             # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
+        
         m.drawcoastlines(linewidth=1.0)
         m.drawcountries()
         # m.drawmapboundary(fill_color=[1.0,1.0,1.0])
@@ -1311,16 +1278,15 @@ class ses3d_model(object):
         # m.drawlsmask(land_color='0.8', ocean_color='#99ffff')
         m.drawmapboundary(fill_color="white")
         
-        # my_colormap = colors.get_colormap('tomo_full_scale_linear_lightness')
-        if colormap=='tomo':
-            my_colormap=colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0],\
-                0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92], 0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], \
-                0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
-        elif colormap=='mono':
-            my_colormap=colormaps.make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
+        my_colormap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        # if colormap=='tomo':
+        #     my_colormap=colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0],\
+        #         0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92], 0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], \
+        #         0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
+        # elif colormap=='mono':
+        #     my_colormap=colormaps.make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
             
         #- loop over subvolumes to collect information ------------------------
-        # continue here
         x_list=[]
         y_list=[]
         idz_list=[]
@@ -1333,13 +1299,12 @@ class ses3d_model(object):
             if (r.max()>=radius) & (min(r)<radius):
                 N_list.append(k)
                 r=r[0:len(r)-1]
-                idz=min(np.where(min(np.abs(r-radius))==np.abs(r-radius))[0])
+                idz=min( np.where(min(np.abs(r-radius))==np.abs(r-radius))[0])
                 if idz==len(r): idz-=idz
                 idz_list.append(idz)
                 if verbose==True:
                     print 'true plotting depth: '+str(6371.0-r[idz])+' km'
-                x, y=m(self.m[k].lon_rot[0:nx-1,0:ny-1]+0.25, self.m[k].lat_rot[0:nx-1,0:ny-1]-0.25)
-                # x,y=m(self.m[k].lon_rot[0:nx-1,0:ny-1],self.m[k].lat_rot[0:nx-1,0:ny-1])
+                x, y=m(self.m[k].lon_rot[0:nx-1,0:ny-1], self.m[k].lat_rot[0:nx-1,0:ny-1])
                 x_list.append(x)
                 y_list.append(y)
         #- make a (hopefully) intelligent colour scale ------------------------
@@ -1350,9 +1315,17 @@ class ses3d_model(object):
                 max_list=[]
                 percentile_list=[]
                 for k in np.arange(len(N_list)):
-                    min_list.append(np.min(self.m[N_list[k]].v[:,:,idz_list[k]]))
-                    max_list.append(np.max(self.m[N_list[k]].v[:,:,idz_list[k]]))
-                    percentile_list.append(np.percentile(np.abs(self.m[N_list[k]].v[:,:,idz_list[k]]),99.0))
+                    if modelname=='dvsv':
+                        v = self.m[N_list[k]].dvsv 
+                    if modelname=='dvsh':
+                        v = self.m[N_list[k]].dvsh 
+                    if modelname=='drho':
+                        v = self.m[N_list[k]].drho 
+                    if modelname=='dvp':
+                        v = self.m[N_list[k]].dvp
+                    min_list.append(np.min(v[:,:,idz_list[k]]))
+                    max_list.append(np.max(v[:,:,idz_list[k]]))
+                    percentile_list.append(np.percentile(np.abs(v[:,:,idz_list[k]]), 99.0))
                 minval=np.min(min_list)
                 maxval=np.max(max_list)
                 percent=np.max(percentile_list)
@@ -1368,56 +1341,39 @@ class ses3d_model(object):
             geopolygons.PlotPolygon(mybasemap=m)
         #- loop over subvolumes to plot ---------------------------------------
         for k in np.arange(len(N_list)):
-            im=m.pcolormesh(x_list[k], y_list[k],self.m[N_list[k]].v[:,:,idz_list[k]],
-                    shading='gouraud', cmap=my_colormap,vmin=min_val_plot,vmax=max_val_plot)
-            # im=m.imshow(self.m[N_list[k]].v[:,:,idz_list[k]], cmap=my_colormap,vmin=min_val_plot,vmax=max_val_plot)
-          #if colormap=='mono':
-            #cs=m.contour(x_list[k],y_list[k],self.m[N_list[k]].v[:,:,idz_list[k]], colors='r',linewidths=1.0)
-            #plt.clabel(cs,colors='r')
+            if modelname=='dvsv':
+                v = self.m[N_list[k]].dvsv 
+            if modelname=='dvsh':
+                v = self.m[N_list[k]].dvsh 
+            if modelname=='drho':
+                v = self.m[N_list[k]].drho 
+            if modelname=='dvp':
+                v = self.m[N_list[k]].dvp
+            im=m.pcolormesh(x_list[k], y_list[k], v[:,:,idz_list[k]],
+                    shading='gouraud', cmap=my_colormap, vmin=min_val_plot, vmax=max_val_plot)
         #- make a colorbar and title ------------------------------------------
         cb=m.colorbar(im,"right", size="3%", pad='2%', )
         cb.ax.tick_params(labelsize=15)
-        cb.set_label('km/sec', fontsize=20, rotation=90)
+        if modelname == 'drho':
+            cb.set_label('g/cm^3', fontsize=20, rotation=90)
+        else:
+            cb.set_label('km/sec', fontsize=20, rotation=90)
         # im.ax.tick_params(labelsize=20)
-        plt.title(str(depth)+' km', fontsize=30)
-        # 
-        # if minlon!=None and minlat!=None and maxlon!=None and maxlat!=None:
-        #     blon=np.arange(100)*(maxlon-minlon)/100.+minlon
-        #     blat=np.arange(100)*(maxlat-minlat)/100.+minlat
-        #     Blon=blon
-        #     Blat=np.ones(Blon.size)*minlat
-        #     x,y = m(Blon, Blat)
-        #     m.plot(x, y, 'b-', lw=3)
-        #     
-        #     Blon=blon
-        #     Blat=np.ones(Blon.size)*maxlat
-        #     x,y = m(Blon, Blat)
-        #     m.plot(x, y, 'b-', lw=3)
-        #     
-        #     Blon=np.ones(Blon.size)*minlon
-        #     Blat=blat
-        #     x,y = m(Blon, Blat)
-        #     m.plot(x, y, 'b-', lw=3)
-        #     
-        #     Blon=np.ones(Blon.size)*maxlon
-        #     Blat=blat
-        #     x,y = m(Blon, Blat)
-        #     m.plot(x, y, 'b-', lw=3)
-        
-        # if len(geopolygons)!=0:
-        #     geopolygons.PlotPolygon(mybasemap=m)
+        plt.title(modelname+ ' at ' + str(depth)+' km', fontsize=30)
         #- save image if wanted -----------------------------------------------
-        # if save_under is None:
-        #     plt.show()
-        # else:
-        #     plt.savefig(save_under+'.png', format='png', dpi=200)
-        #     plt.close()
+        if save_under is None:
+            plt.show()
+        else:
+            plt.savefig(save_under+'.png', format='png', dpi=200)
+            plt.close()
         return
+    
+    
     
     #########################################################################
     #- plot depth to a certain threshold value
     #########################################################################
-    def plot_threshold(self, val, min_val_plot, max_val_plot, res='i', colormap='tomo', verbose=False):
+    def plot_threshold(self, val, min_val_plot, max_val_plot, resolution='i', colormap='tomo', verbose=False):
         """ plot depth to a certain threshold value 'val' in an ses3d model
         plot_threshold(val,min_val_plot,max_val_plot,colormap='tomo',verbose=False):
         val=threshold value
@@ -1427,11 +1383,11 @@ class ses3d_model(object):
         #- set up a map and colourmap
         if self.global_regional=='regional':
             m=Basemap(projection='merc',llcrnrlat=self.lat_min,urcrnrlat=self.lat_max,\
-                    llcrnrlon=self.lon_min,urcrnrlon=self.lon_max,lat_ts=20,resolution=res)
+                    llcrnrlon=self.lon_min,urcrnrlon=self.lon_max,lat_ts=20,resolution=resolution)
             m.drawparallels(np.arange(self.lat_min,self.lat_max,self.d_lon),labels=[1,0,0,1])
             m.drawmeridians(np.arange(self.lon_min,self.lon_max,self.d_lat),labels=[1,0,0,1])
         elif self.global_regional=='global':
-            m=Basemap(projection='ortho',lon_0=self.lon_centre,lat_0=self.lat_centre,resolution=res)
+            m=Basemap(projection='ortho',lon_0=self.lon_centre,lat_0=self.lat_centre,resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
             m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])
         m.drawcoastlines()

@@ -15,7 +15,9 @@ import domain
 
 smodel=vmodel.ses3d_model()
 smodel.read('./MODELS_3D')
-smodel.write('./MODELS_3D_test')
+smodel.smooth_horizontal(sigma=10., modelname='dvsv', filter_type='gauss')
+smodel.plot_slice(depth=3., modelname='dvsv')
+# smodel.write('./MODELS_3D_test')
 # smodel.read_block('./MODELS_3D')
 # smodel.write_block('.')
 # smodel.read_model('./MODELS_3D',  'dvp')
