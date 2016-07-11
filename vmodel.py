@@ -6,7 +6,7 @@ from lasif import rotations
 from lasif import colors
 import colormaps
 from mpl_toolkits.basemap import Basemap, shiftgrid
-
+import h5py
 
 ###################################################################################################
 #- rotation matrix
@@ -552,6 +552,7 @@ class ses3d_model(object):
         self.n = np.array([0., 1., 0.])
         return
     
+    
     #########################################################################
     #- copy models
     #########################################################################
@@ -694,7 +695,7 @@ class ses3d_model(object):
                           = rotations.rotate_lat_lon(self.m[k].lat, self.m[k].lon, self.n, self.phi)
         else:
             for k in np.arange(self.nsubvol,dtype=int):
-                self.m[k].lat_rot, self.m[k].lon_rot = np.meshgrid(self.m[k].lat, self.m[k].lon) ### Why meshgrid ???
+                self.m[k].lat_rot, self.m[k].lon_rot = np.meshgrid(self.m[k].lat, self.m[k].lon) 
                 self.m[k].lat_rot = self.m[k].lat_rot.T
                 self.m[k].lon_rot = self.m[k].lon_rot.T
         #- decide on global or regional model =======================================
@@ -839,6 +840,125 @@ class ses3d_model(object):
         print '============================================================'
         return
     
+    def readh5model(self, infname, modelname, minlat=-999, maxlat=999, minlon=-999, maxlon=999, maxdepth=None ):
+        MDataset = h5py.File(infname)
+        # get latitude/longitude information
+        if minlat < MDataset[modelname].attrs['minlat']:
+            minlat = MDataset[modelname].attrs['minlat']
+        if maxlat > MDataset[modelname].attrs['maxlat']:
+            maxlat = MDataset[modelname].attrs['maxlat']
+        if minlon < MDataset[modelname].attrs['minlon']:
+            minlon = MDataset[modelname].attrs['minlon']
+        if maxlon > MDataset[modelname].attrs['maxlon']:
+            maxlon = MDataset[modelname].attrs['maxlon']
+        dlon = MDataset[modelname].attrs['dlon']
+        dlat = MDataset[modelname].attrs['dlat']
+        self.lat_min=minlat-dlat/2.
+        self.lat_max=maxlat+dlat/2.
+        self.lon_min=minlon-dlon/2.
+        self.lon_max=maxlon+dlon/2.
+        # determine number of subvolumes, max depth and whether to interpolate or not 
+        if maxdepth == None:
+            dz = MDataset[modelname].attrs['dz']
+            depth = MDataset[modelname].attrs['depth']
+            depthArr = MDataset[modelname].attrs['depthArr']
+            self.nsubvol = dz.size
+        else:
+            dz = MDataset[modelname].attrs['dz']
+            depth = MDataset[modelname].attrs['depth']
+            print depth
+            depthArr = MDataset[modelname].attrs['depthArr']
+            if maxdepth > depth[-1]:
+                raise ValueError('maximum depth is too large!')
+            depth = depth [ np.where(depth<maxdepth)[0] ]
+            bdz = dz[depth.size]
+            if depth.size == 0 and maxdepth % bdz != 0:
+                maxdepth = int( maxdepth / bdz ) * bdz
+                print 'actual max depth:', maxdepth, 'km'
+            elif ( maxdepth - depth[-1]) % bdz !=0:
+                maxdepth = int( ( maxdepth - depth[-1]) / bdz ) * bdz + depth[-1]
+                print 'actual max depth:', maxdepth, 'km'
+            depth = np.append(depth, maxdepth)
+            dz = dz[:depth.size]
+            self.nsubvol = depth.size
+        ##############################
+        # Get block information
+        ##############################
+        radius=6371
+        dx=dlat
+        dy=dlon
+        xmin = 90. - self.lat_max
+        xmax = 90. - self.lat_min
+        ymin = self.lon_min
+        ymax = self.lon_max
+        mindepth=0
+        nzArr = np.array([])
+        x0=xmin+dx/2.
+        y0=ymin+dy/2.
+        xG0=xmin
+        yG0=ymin
+        nx=int((xmax-xmin)/dx)
+        ny=int((ymax-ymin)/dy)
+        nGx=int((xmax-xmin)/dx)+1
+        nGy=int((ymax-ymin)/dy)+1
+        xArr=x0+np.arange(nx)*dx
+        yArr=y0+np.arange(ny)*dy
+        xGArr=xG0+np.arange(nGx)*dx
+        yGArr=yG0+np.arange(nGy)*dy
+        for k in xrange(self.nsubvol):
+            rG0=radius-depth[k]
+            zG0=depth[k]
+            if k == 0:
+                nzArr = np.append (nzArr, int((depth[k]-mindepth)/dz[k]) )
+                nGz=int((depth[k]-mindepth)/dz[k])+1
+            else:
+                nzArr = np.append (nzArr, int((depth[k]-depth[k-1])/dz[k]) )
+                nGz=int((depth[k]-depth[k-1])/dz[k])+1
+            zGArr=zG0-np.arange(nGz)*dz[k]
+            rGArr=rG0+np.arange(nGz)*dz[k]
+            new_subM = ses3d_submodel()
+            new_subM.lat = 90. - xGArr
+            new_subM.lon = yGArr
+            new_subM.r = rGArr
+            self.m.append(new_subM)
+        ##############################
+        # Get velocity model
+        ##############################
+        tz = 0
+        bz = 0
+        vsindex =  MDataset[modelname].attrs['vs']
+        vpindex =  MDataset[modelname].attrs['vp']
+        rhoindex =  MDataset[modelname].attrs['rho']
+        try:
+            group = MDataset[modelname+'_block']
+        except:
+            group = MDataset[modelname]
+        for k in xrange(self.nsubvol):
+            self.m[k].dvsv = np.zeros((nx, ny, nzArr[k]))
+            self.m[k].dvsh = np.zeros((nx, ny, nzArr[k]))
+            self.m[k].dvp = np.zeros((nx, ny, nzArr[k]))
+            self.m[k].drho = np.zeros((nx, ny, nzArr[k]))
+            bz = bz + nzArr[k]
+            for ix in xrange(nx):
+                for iy in xrange(ny):
+                    lat = 90. - xArr[ix]
+                    lon = yArr [iy]
+                    name='%g_%g' %(lon, lat)
+                    depthProf = group[name][...]
+                    self.m[k].dvsv[ix, iy, :] = (depthProf[tz:bz, vsindex])[::-1]
+                    self.m[k].dvsh[ix, iy, :] = (depthProf[tz:bz, vsindex])[::-1]
+                    self.m[k].dvp[ix, iy, :] = (depthProf[tz:bz, vpindex])[::-1]
+                    self.m[k].drho[ix, iy, :] = (depthProf[tz:bz, rhoindex])[::-1]
+            tz = tz + nzArr[k]
+            self.m[k].lat_rot, self.m[k].lon_rot = np.meshgrid(self.m[k].lat, self.m[k].lon) 
+            self.m[k].lat_rot = self.m[k].lat_rot.T
+            self.m[k].lon_rot = self.m[k].lon_rot.T
+        return
+            
+        
+        
+        
+        
     
     #########################################################################
     #- Compute the L2 norm.
@@ -875,11 +995,10 @@ class ses3d_model(object):
         #- Finish. ------------------------------------------------------------
         return np.sqrt(N)
     
-        
     #########################################################################
     #- Apply horizontal smoothing.
     #########################################################################
-    def smooth_horizontal(self, sigma, modelname, filter_type='gauss'):
+    def smooth_horizontal(self, sigma, modelname, filter_type='neighbour'):
         """
         smooth_horizontal(self,sigma,filter='gauss')
         Experimental function for smoothing in horizontal directions.
@@ -951,7 +1070,6 @@ class ses3d_model(object):
                             v_filtered[i,j,:]=(v[i,j,:]+v[i+1,j,:]+v[i-1,j,:]+v[i,j+1,:]+v[i,j-1,:])/5.0
         return
         
-    
     #########################################################################
     #- Apply horizontal smoothing with adaptive smoothing length.
     #########################################################################
@@ -1030,8 +1148,7 @@ class ses3d_model(object):
                             v_filtered[i,j,k]=np.sum(v[i-dn:i+dn,j-dn:j+dn,k]*GG*dV)
         return
             # self.m[n].v=v_filtered
-    
-    
+
     #########################################################################
     #- convert to vtk format
     #########################################################################
@@ -1133,7 +1250,6 @@ class ses3d_model(object):
         #- clean up
         fid.close()
         return
-    
     
     def convert_to_vtk_depth(self, depth, directory, filename, verbose=False):
         """ convert ses3d model to vtk format for plotting with Paraview, VisIt, ... .
@@ -1246,6 +1362,10 @@ class ses3d_model(object):
         colormap='tomo','mono'
         resolution=resolution of the map, admissible values are: c, l, i, h f
         save_under=save figure as *.png with the filename "save_under". Prevents plotting of the slice.
+        
+        Note:
+        The model is actually a block model, namely, the model values are NOT assigned to grid point.
+        However, as an approximation, we can assume each grid has the value corresponds to the nearest block. 
         """
         radius=6371.0-depth
         # ax=plt.subplot(111)
@@ -1260,13 +1380,13 @@ class ses3d_model(object):
             self.lat_centre = (self.lat_max+self.lat_min)/2.0
             self.lon_centre = (self.lon_max+self.lon_min)/2.0
             m=Basemap(projection='ortho',lon_0=self.lon_centre, lat_0=self.lat_centre, resolution=resolution)
-            m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
-            m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])
+            m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,1])
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,0,0,1])
         
         elif self.global_regional=='regional_ortho':
             m = Basemap(projection='ortho', lon_0=self.lon_min,lat_0=self.lat_min, resolution=resolution,\
                 llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
-            m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,0],  linewidth=2,  fontsize=20)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
             # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
@@ -1304,7 +1424,7 @@ class ses3d_model(object):
                 idz_list.append(idz)
                 if verbose==True:
                     print 'true plotting depth: '+str(6371.0-r[idz])+' km'
-                x, y=m(self.m[k].lon_rot[0:nx-1,0:ny-1], self.m[k].lat_rot[0:nx-1,0:ny-1])
+                x, y=m(self.m[k].lon_rot[0:nx-1,0:ny-1], self.m[k].lat_rot[0:nx-1,0:ny-1]) # approximately, note that the model is actualy a block model
                 x_list.append(x)
                 y_list.append(y)
         #- make a (hopefully) intelligent colour scale ------------------------
@@ -1368,12 +1488,10 @@ class ses3d_model(object):
             plt.close()
         return
     
-    
-    
     #########################################################################
     #- plot depth to a certain threshold value
     #########################################################################
-    def plot_threshold(self, val, min_val_plot, max_val_plot, resolution='i', colormap='tomo', verbose=False):
+    def plot_threshold(self, val, min_val_plot, max_val_plot, modelname, resolution='i', colormap='afmhot_r', verbose=False):
         """ plot depth to a certain threshold value 'val' in an ses3d model
         plot_threshold(val,min_val_plot,max_val_plot,colormap='tomo',verbose=False):
         val=threshold value
@@ -1393,39 +1511,53 @@ class ses3d_model(object):
         m.drawcoastlines()
         m.drawcountries()
         m.drawmapboundary(fill_color=[1.0,1.0,1.0])
-        if colormap=='tomo':
-            my_colormap=make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0], \
-                0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92], 0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], \
-                0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
-        elif colormap=='mono':
-            my_colormap=make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
+        # if colormap=='tomo':
+        #     my_colormap=colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0], \
+        #         0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92], 0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], \
+        #         0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
+        # elif colormap=='mono':
+        #     my_colormap=colormaps.make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
         #- loop over subvolumes
         for k in np.arange(self.nsubvol):
-            depth=np.zeros(np.shape(self.m[k].v[:,:,0]))
+            if modelname =='dvsv':
+                v = self.m[k].dvsv 
+            if modelname =='dvsh':
+                v = self.m[k].dvsh 
+            if modelname =='drho':
+                v = self.m[k].drho 
+            if modelname =='dvp':
+                v = self.m[k].dvp
+            depth=np.zeros(np.shape(v[:,:,0]))
             nx=len(self.m[k].lat)
             ny=len(self.m[k].lon)
             #- find depth
             r=self.m[k].r
             r=0.5*(r[0:len(r)-1]+r[1:len(r)])
+            
             for idx in np.arange(nx-1):
                 for idy in np.arange(ny-1):
-                    n=self.m[k].v[idx,idy,:]>=val
-                    depth[idx,idy]=6371.0-np.max(r[n])
+                    n=v[idx, idy,:]>=val
+                    try:
+                        depth[idx, idy]=6371.0-np.max(r[n])
+                    except:
+                        if len(r[n])==0:
+                            depth[idx, idy]=6371.0-np.min(r)
+                    # depth[idx, idy]=6371.0-r[n]
           #- rotate coordinate system if necessary
-            lon,lat=np.meshgrid(self.m[k].lon[0:ny],self.m[k].lat[0:nx])
+            lon,lat=np.meshgrid(self.m[k].lon[0:ny], self.m[k].lat[0:nx])
             if self.phi!=0.0:
                 lat_rot=np.zeros(np.shape(lon),dtype=float)
                 lon_rot=np.zeros(np.shape(lat),dtype=float)
                 for idx in np.arange(nx):
-                  for idy in np.arange(ny):
-                    colat=90.0-lat[idx,idy]
-                    lat_rot[idx,idy],lon_rot[idx,idy]=rotate_coordinates(self.n,-self.phi,colat,lon[idx,idy])
-                    lat_rot[idx,idy]=90.0-lat_rot[idx,idy]
+                    for idy in np.arange(ny):
+                        colat=90.0-lat[idx,idy]
+                        lat_rot[idx, idy], lon_rot[idx, idy]=rotate_coordinates(self.n,-self.phi, colat, lon[idx,idy])
+                        lat_rot[idx, idy]=90.0-lat_rot[idx, idy]
                 lon=lon_rot
                 lat=lat_rot
         #- convert to map coordinates and plot
             x,y=m(lon,lat)
-            im=m.pcolor(x, y, depth, cmap=my_colormap, vmin=min_val_plot, vmax=max_val_plot)
+            im=m.pcolor(x, y, depth, cmap=colormap, vmin=min_val_plot, vmax=max_val_plot, shading='gouraud')
         m.colorbar(im,"right", size="3%", pad='2%')
         plt.title('depth to '+str(val)+' km/s [km]')
         plt.show()   
