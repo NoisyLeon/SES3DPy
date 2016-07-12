@@ -48,15 +48,17 @@ class Qmodel(object):
     def Qdiscrete(self, max_it=30000, T_0=0.2, d=0.9998, f_ref=1.0/20.0, alpha=0.0):
         """
         Computation and visualisation of a discrete absorption-band model.
+        ====================================================================
         For a given array of target Q values, the code determines the optimal relaxation
         times and weights using simulated annealing algorithmn. This is done within in specified
         frequency range.
-        Input:
+        Input parameter:
         max_it - number of iterations
-        T_0    - the initial random step length
-        d      - the temperature decrease (from one sample to the next by a factor of d)
-        f_ref  - Reference frequency in Hz
+        T_0      - the initial random step length
+        d          - the temperature decrease (from one sample to the next by a factor of d)
+        f_ref    - Reference frequency in Hz
         alpha  - exponent (alpha) for frequency-dependent Q, set to 0 for frequency-independent Q
+        ====================================================================
         """
         #------------------
         #- initialisations 
@@ -209,9 +211,11 @@ class Qmodel(object):
         #-------------------------------------
         #- print weights and relaxation times 
         #-------------------------------------
+        print '===================== Standard Linear Solid (SLS) model ====================='
         print 'Weights: \t\t', D
         print 'Relaxation times: \t', tau_s
         print 'Partial derivatives: \t', (D_pert - D)/0.1
+        print '======================================================================'
         # print 'Cumulative rms error:  ', np.sqrt(chi/(len(Q)*len(self.QArr)))
         self.D=D
         self.tau_s=tau_s

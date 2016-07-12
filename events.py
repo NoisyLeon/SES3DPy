@@ -129,7 +129,7 @@ class STF(obspy.core.trace.Trace):
             plt.title('Time derivative source time function (frequency domain)')
         else:
             plt.title('source time function (frequency domain)')
-        # plt.show()
+        plt.show()
         return
     
     def plotstf(self, fmax=None):

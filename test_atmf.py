@@ -1,6 +1,6 @@
 import pyatmf
 
-MFile = pyatmf.ATMFDataSet('../EAmodel.h5')
+MFile = pyatmf.ATMFDataSet('../EAmodel_MP.h5')
 # MFile.readCVmodel(indir='/home/lili/EA_MODEL/ALL_MODEL', modelname='EA_model_layered',
 #                 grdlst='/home/lili/EA_MODEL/EA_grid_point.lst')
 
@@ -12,12 +12,12 @@ MFile = pyatmf.ATMFDataSet('../EAmodel.h5')
 # MFile.verticalExtend( inname='EA_model_layered', outname='EA_model_410km', dz=[0.5, 1], depthlst=[50, 200] )
 
 # MFile.readRefmodel(infname='ak135.mod')
-MFile.verticalExtend( inname='EA_model_200_ses3d', block = True, outname='EA_model_200_ses3d_block', dz=[0.5, 1], depthlst=[50, 200], maxdepth = 200.)
+# MFile.verticalExtend( inname='EA_model_layered', block = True, outname='EA_model_210', dz=[0.5, 1], depthlst=[50, 200], maxdepth = 210.5)
 
-# MFile.verticalExtend( inname='EA_model_200_ses3d', block = True, outname='EA_model_200_ses3d_block', dz=[0.5, 1], depthlst=[50, 200], maxdepth = 200.,
-#                      outdir = '/home/lili/V_extend_model_200_block')
-# MFile.getavg(modelname='EA_model_200')
-# MFile.verticalExtend( inname='EA_model_layered', outname='EA_model_600km', dz=[0.5, 1], depthlst=[50, 200], maxdepth = 610., 
-#                 outdir = '/home/lili/V_extend_model_600' )
+# MFile.verticalExtend(inname='EA_model_layered', block = True, outname='EA_model_210', dz=[0.5, 1], depthlst=[50, 200], maxdepth = 210, 
+#                      outdir = '/lustre/janus_scratch/life9360/V_extend_model_210')
+# 
+# MFile.getavg(modelname='EA_model_210')
 
 # MFile.horizontalExtend(modelname='EA_model_200', minlat=15., maxlat=55., dlat=0.5, minlon=75., maxlon=145., dlon=0.5)
+# MFile.horizontalExtend(modelname='EA_model_210', minlat=15., maxlat=55., dlat=0.5, minlon=75., maxlon=145., dlon=0.5)

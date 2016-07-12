@@ -7,6 +7,7 @@ import os
 import numpy as np
 from lasif import rotations
 import matplotlib.pyplot as plt
+import warnings
 
 class InputFileGenerator(object):
     """An object to generate input file for SES3D
@@ -23,6 +24,7 @@ class InputFileGenerator(object):
         Add explosion to catalog
         """
         self.events.add_explosion(longitude=longitude, latitude=latitude, depth=depth, m0=m0)
+        self._check_time_step(evla = latitude, evlo=longitude)
         return
     
     def add_earthquake(self, longitude, latitude, depth, m_rr, m_tt, m_pp, m_tp, m_rt, m_rp):
@@ -31,8 +33,27 @@ class InputFileGenerator(object):
         """
         self.events.add_earthquake(longitude=longitude, latitude=latitude, depth=depth,
                            m_rr=m_rr, m_tt=m_tt, m_pp=m_pp, m_tp=m_tp, m_rt=m_rt, m_rp=m_rp)
+        self._check_time_step(evla = latitude, evlo=longitude)
         return
     
+    def _check_time_step(self, evla, evlo, vmin = 3.0):
+        minlat=self.config.mesh_min_latitude
+        maxlat=self.config.mesh_max_latitude
+        minlon=self.config.mesh_min_longitude 
+        maxlon=self.config.mesh_max_longitude
+        num_timpstep = self.config.number_of_time_steps
+        dt = self.config.time_increment_in_s
+        dist1, az, baz=obspy.geodetics.base.gps2dist_azimuth(evla, evlo, minlat, minlon) # distance is in m
+        dist2, az, baz=obspy.geodetics.base.gps2dist_azimuth(evla, evlo, minlat, maxlon) # distance is in m
+        dist3, az, baz=obspy.geodetics.base.gps2dist_azimuth(evla, evlo, maxlat, minlon) # distance is in m
+        dist4, az, baz=obspy.geodetics.base.gps2dist_azimuth(evla, evlo, maxlat, maxlon) # distance is in m
+        distArr = np.array([dist1/1000., dist2/1000., dist3/1000., dist4/1000.])
+        distmax = distArr.max()
+        if distmax/vmin * 1.5 > dt * num_timpstep:
+            warnings.warn('Time length of seismogram is too short, recommended: '+
+                        str(1.5*distmax/vmin)+' sec, actual: '+str(dt * num_timpstep)+' sec', UserWarning, stacklevel=1)
+        return
+        
     def set_config(self, num_timpstep, dt, nx_global, ny_global, nz_global, px, py, pz, minlat, maxlat, minlon, maxlon, zmin, zmax, 
                  isdiss=True, model_type=3, simulation_type=0, output_folder='../OUTPUT', adjoint_output_folder='../OUTPUT/ADJOINT',
                  lpd=4, displacement_snapshot_sampling=100, output_displacement=1, samp_ad=15 ):
@@ -162,7 +183,7 @@ class InputFileGenerator(object):
                     '=========================================================================' 
         return
     
-    def CheckMinWavelengthCondition(self, fmax=1.0/5.0, Vmin=1.0, wpe=1.5):
+    def CheckMinWavelengthCondition(self, fmax=1.0/5.0, vmin=1.0, wpe=1.5):
         """
         Check minimum wavelength condition
         ==========================================================
@@ -172,7 +193,7 @@ class InputFileGenerator(object):
         wpe         - wavelength per element
         ==========================================================
         """
-        lamda=Vmin/fmax
+        lamda=vmin/fmax
         NGLL = self.config.lagrange_polynomial_degree
         C=lamda*NGLL/5./wpe
         minlat=self.config.mesh_min_latitude
@@ -206,14 +227,14 @@ class InputFileGenerator(object):
         Add station list
         """
         try:
-            self.stalst.append(inSta)
+            self.stalst= self.stalst + inSta
         except TypeError:
             SLst=stations.StaLst()
             SLst.read(inSta)
             self.stalst = self.stalst + SLst
         return
     
-    def get_stf(self, stf, fmin=None, fmax=None, plotflag=True):
+    def get_stf(self, stf, fmin=None, vmin = 1.0, fmax=None, plotflag=False):
         """
         Get source time function and filter it according to fmin/fmax
         ==========================================================
@@ -229,13 +250,14 @@ class InputFileGenerator(object):
             stf.filter('highpass', freq=fmin, corners=4, zerophase=False)
         if fmax !=None:
             stf.filter('lowpass', freq=fmax, corners=5, zerophase=False)
-        try:
-            fmax=stf.fcenter*2.5
-        except:
-            raise AttributeError('Maximum frequency not specified!')
+        else:
+            try:
+                fmax=stf.fcenter*2.0 # should be 2.5
+            except:
+                raise AttributeError('Maximum frequency not specified!')
         if plotflag==True:
             stf.plotstf(fmax=fmax)
-        self.CheckMinWavelengthCondition(fmax=fmax)
+        self.CheckMinWavelengthCondition(fmax=fmax, vmin=vmin)
         self.config.source_time_function = stf.data
         return
 
@@ -243,7 +265,7 @@ class InputFileGenerator(object):
         """
         Write input files(setup, event_x, event_list, recfile_x, stf) to given directory
         """
-        outdir=outdir+'/INPUT'
+        outdir=outdir
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         self.events.write(outdir, config=self.config)
@@ -254,6 +276,7 @@ class InputFileGenerator(object):
         except:
             warnings.warn
         if self.config.is_dissipative and ( not os.path.isfile(outdir+'/relax') ):
+            print outdir
             raise AttributeError('relax file not exists!')
         setup_file_template = (
             "MODEL ==============================================================="

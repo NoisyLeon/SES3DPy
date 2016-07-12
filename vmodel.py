@@ -8,507 +8,7 @@ import colormaps
 from mpl_toolkits.basemap import Basemap, shiftgrid
 import h5py
 
-###################################################################################################
-#- rotation matrix
-###################################################################################################
-def rotation_matrix(n,phi):
 
-    """ compute rotation matrix
-    input: rotation angle phi [deg] and rotation vector n normalised to 1
-    return: rotation matrix
-    """
-    phi=np.pi*phi/180.0
-    A=np.array([ (n[0]*n[0],n[0]*n[1],n[0]*n[2]), (n[1]*n[0],n[1]*n[1],n[1]*n[2]), (n[2]*n[0],n[2]*n[1],n[2]*n[2])])
-    B=np.eye(3)
-    C=np.array([ (0.0,-n[2],n[1]), (n[2],0.0,-n[0]), (-n[1],n[0],0.0)])
-    R=(1.0-np.cos(phi))*A+np.cos(phi)*B+np.sin(phi)*C
-    return np.matrix(R)
-
-###################################################################################################
-#- rotate coordinates
-###################################################################################################
-def rotate_coordinates(n,phi,colat,lon):
-    """ rotate colat and lon
-    input: rotation angle phi [deg] and rotation vector n normalised to 1, original colatitude and longitude [deg]
-    return: colat_new [deg], lon_new [deg]
-    """
-    # convert to radians
-    colat=np.pi*colat/180.0
-    lon=np.pi*lon/180.0
-    # rotation matrix
-    R=rotation_matrix(n,phi)
-    # original position vector
-    x=np.matrix([[np.cos(lon)*np.sin(colat)], [np.sin(lon)*np.sin(colat)], [np.cos(colat)]])
-    # rotated position vector
-    y=R*x
-    # compute rotated colatitude and longitude
-    colat_new=np.arccos(y[2])
-    lon_new=np.arctan2(y[1],y[0])
-    return float(180.0*colat_new/np.pi), float(180.0*lon_new/np.pi)
-
-class cv2ses3d(object):
-    """
-    An object 
-    """
-    def __init__(self, minlat, maxlat, minlon, maxlon, depth, dlat, dlon, dz, inflag='block'):
-        
-        if inflag=='block':
-            minlat=minlat-dlat[0]/2.
-            maxlat=maxlat+dlat[0]/2.
-            minlon=minlon-dlon[0]/2.
-            maxlon=maxlon+dlon[0]/2.
-        if depth.size!=dlat.size or dlat.size != dlon.size or dlon.size != dz.size:
-            self.numsub=1
-            self.depth=np.array([depth[0]])
-            self.dx=np.array([dlat[0]])
-            self.dy=np.array([dlon[0]])
-            self.dz=np.array([dz[0]])
-        else:
-            self.numsub=depth.size
-            self.depth=depth
-            self.dx=dlat
-            self.dy=dlon
-            self.dz=dz
-        self.xmin=90.-maxlat
-        self.xmax=90.-minlat
-        self.ymin= minlon
-        self.ymax=maxlon
-    
-    def GetBlockArrLst(self):
-        radius=6371
-        self.xArrLst=[]
-        self.yArrLst=[]
-        self.xGArrLst=[]
-        self.yGArrLst=[]
-        self.zGArrLst=[]
-        self.rGArrLst=[]
-        self.zArrLst=[]
-        self.rArrLst=[]
-        dx=self.dx
-        dy=self.dy
-        dz=self.dz
-        mindepth=0
-        for numsub in np.arange(self.numsub):
-            x0=self.xmin+dx[numsub]/2.
-            y0=self.ymin+dy[numsub]/2.
-            xG0=self.xmin
-            yG0=self.ymin
-            r0=(radius-self.depth[numsub])+dz[numsub]/2.
-            z0=self.depth[numsub]-dz[numsub]/2.
-            rG0=radius-self.depth[numsub]
-            zG0=self.depth[numsub]
-            nx=int((self.xmax-self.xmin)/dx[numsub])
-            ny=int((self.ymax-self.ymin)/dx[numsub])
-            nGx=int((self.xmax-self.xmin)/dx[numsub])+1
-            nGy=int((self.ymax-self.ymin)/dx[numsub])+1
-            nz=int((self.depth[numsub]-mindepth)/dz[numsub])
-            nGz=int((self.depth[numsub]-mindepth)/dz[numsub])+1
-            xArr=x0+np.arange(nx)*dx[numsub]
-            yArr=y0+np.arange(ny)*dy[numsub]
-            xGArr=xG0+np.arange(nGx)*dx[numsub]
-            yGArr=yG0+np.arange(nGy)*dy[numsub]
-            zArr=z0-np.arange(nz)*dz[numsub]
-            rArr=r0+np.arange(nz)*dz[numsub]
-            zGArr=zG0-np.arange(nGz)*dz[numsub]
-            rGArr=rG0+np.arange(nGz)*dz[numsub]
-            self.xArrLst.append(xArr)
-            self.yArrLst.append(yArr)
-            self.xGArrLst.append(xGArr)
-            self.yGArrLst.append(yGArr)
-            self.zArrLst.append(zArr)
-            self.rArrLst.append(rArr)
-            self.zGArrLst.append(zGArr)
-            self.rGArrLst.append(rGArr)
-            mindepth=self.depth[numsub]
-        return
-    
-    def generateBlockFile(self, outdir):
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir)
-        bxfname=outdir+'/block_x'
-        byfname=outdir+'/block_y'
-        bzfname=outdir+'/block_z'
-        outbxArr=np.array([])
-        outbyArr=np.array([])
-        outbzArr=np.array([])
-        outbxArr=np.append(outbxArr, self.numsub)
-        outbyArr=np.append(outbyArr, self.numsub)
-        outbzArr=np.append(outbzArr, self.numsub)
-    
-        for numsub in self.numsub-np.arange(self.numsub)-1:
-            nGx=self.xGArrLst[numsub].size
-            nGy=self.yGArrLst[numsub].size
-            nGz=self.zGArrLst[numsub].size
-            outbxArr=np.append(outbxArr, nGx)
-            outbyArr=np.append(outbyArr, nGy)
-            outbzArr=np.append(outbzArr, nGz)
-            outbxArr=np.append(outbxArr, self.xGArrLst[numsub])
-            outbyArr=np.append(outbyArr, self.yGArrLst[numsub])
-            outbzArr=np.append(outbzArr, self.rGArrLst[numsub])
-        np.savetxt(bxfname, outbxArr, fmt='%g')
-        np.savetxt(byfname, outbyArr, fmt='%g')
-        np.savetxt(bzfname, outbzArr, fmt='%g')
-        return
-    
-    def generateVsLimitedGeoMap(self, datadir, outdir, Vsmin, avgfname=None, dataprx='', datasfx='_mod'):
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir)
-        if avgfname!=None:
-            avgArr=np.loadtxt(avgfname)
-            adepth=avgArr[:,0]
-            arho=avgArr[:,1]
-            aVp=avgArr[:,2]
-            aVs=avgArr[:,3]
-        depthInter=np.array([])
-        NZ=np.array([0],dtype=int)
-        Lnz=0
-        for numsub in self.numsub-np.arange(self.numsub)-1: # maxdep ~ 0
-            depthInter=np.append(depthInter, self.zArrLst[numsub])
-            NZ=np.append(NZ, NZ[Lnz]+self.zArrLst[numsub].size)
-            Lnz=Lnz+1
-        
-        depthInter=depthInter[::-1] # 0 ~ maxdep
-        if avgfname!=None:
-            for colat in self.xArrLst[0]:
-                for lon in self.yArrLst[0]:
-                    lat=90.-colat
-                    infname=datadir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    if not os.path.isfile(infname):
-                        continue
-                    inArr=np.loadtxt(infname)
-                    depth=inArr[:,0]
-                    Vs=inArr[:,1]
-                    Vp=inArr[:,2]
-                    Rho=inArr[:,3]
-                    VpInter=np.interp(depthInter, depth, Vp)
-                    VsInter=np.interp(depthInter, depth, Vs)
-                    RhoInter=np.interp(depthInter, depth, Rho)
-                    
-                    aVpInter=np.interp(depthInter, adepth, aVp)
-                    aVsInter=np.interp(depthInter, adepth, aVs)
-                    aRhoInter=np.interp(depthInter, adepth, arho)
-                    
-                    if Vsmin!=999:
-                        LArr=VsInter<Vsmin
-                        if LArr.size!=0:
-                            UArr=VsInter>=Vsmin
-                            Vs1=Vsmin*LArr
-                            Vs2=VsInter*UArr
-                            VsInter=npr.evaluate('Vs1+Vs2')
-                            # Brocher's relation
-                            Vpmin=0.9409+2.0947*Vsmin-0.8206*Vsmin**2+0.2683*Vsmin**3-0.0251*Vsmin**4
-                            Vp1=Vpmin*LArr
-                            Vp2=VpInter*UArr
-                            VpInter=npr.evaluate('Vp1+Vp2')
-                            
-                            Rhomin=1.6612*Vpmin-0.4721*Vpmin**2+0.0671*Vpmin**3-0.0043*Vpmin**4+0.000106*Vpmin**5
-                            Rho1=Rhomin*LArr
-                            Rho2=RhoInter*UArr
-                            RhoInter=npr.evaluate('Rho1+Rho2')
-                            
-                    VpInter=npr.evaluate('VpInter-aVpInter')
-                    VsInter=npr.evaluate('VsInter-aVsInter')
-                    RhoInter=npr.evaluate('RhoInter-aRhoInter')
-                    
-                    outArr=np.append(depthInter, VsInter )
-                    outArr=np.append(outArr, VpInter )
-                    outArr=np.append(outArr, RhoInter )
-                    outArr=outArr.reshape((4, depthInter.size))
-                    outArr=outArr.T
-                    outfname=outdir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    np.savetxt(outfname, outArr, fmt='%g')
-        else:
-            for colat in self.xArrLst[0]:
-                for lon in self.yArrLst[0]:
-                    lat=90.-colat
-                    infname=datadir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    if not os.path.isfile(infname):
-                        continue
-                    inArr=np.loadtxt(infname)
-                    depth=inArr[:,0]
-                    Vs=inArr[:,1]
-                    Vp=inArr[:,2]
-                    Rho=inArr[:,3]
-                    VpInter=np.interp(depthInter, depth, Vp)
-                    VsInter=np.interp(depthInter, depth, Vs)
-                    RhoInter=np.interp(depthInter, depth, Rho)
-                    
-                    if Vsmin!=999:
-                        LArr=VsInter<Vsmin
-                        if LArr.size!=0:
-                            UArr=VsInter>=Vsmin
-                            Vs1=Vsmin*LArr
-                            Vs2=VsInter*UArr
-                            VsInter=npr.evaluate('Vs1+Vs2')
-                            # Brocher's relation
-                            Vpmin=0.9409+2.0947*Vsmin-0.8206*Vsmin**2+0.2683*Vsmin**3-0.0251*Vsmin**4
-                            Vp1=Vpmin*LArr
-                            Vp2=VpInter*UArr
-                            VpInter=npr.evaluate('Vp1+Vp2')
-                            
-                            Rhomin=1.6612*Vpmin-0.4721*Vpmin**2+0.0671*Vpmin**3-0.0043*Vpmin**4+0.000106*Vpmin**5
-                            Rho1=Rhomin*LArr
-                            Rho2=RhoInter*UArr
-                            RhoInter=npr.evaluate('Rho1+Rho2')
-                    
-                    outArr=np.append(depthInter, VsInter )
-                    outArr=np.append(outArr, VpInter )
-                    outArr=np.append(outArr, RhoInter )
-                    outArr=outArr.reshape((4, depthInter.size))
-                    outArr=outArr.T
-                    outfname=outdir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    print outfname
-                    np.savetxt(outfname,outArr,fmt='%g')
-        return
-    
-    def generate3DModelFile(self, datadir, outdir, avgfname=None, dataprx='', datasfx='_mod', Vsmin=999):
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir)
-        if avgfname!=None:
-            avgArr=np.loadtxt(avgfname)
-            adepth=avgArr[:,0]
-            arho=avgArr[:,1]
-            aVp=avgArr[:,2]
-            aVs=avgArr[:,3]
-        
-        dVpfname=outdir+'/dvp'
-        dRhofname=outdir+'/drho'
-        dVsvfname=outdir+'/dvsv'
-        dVshfname=outdir+'/dvsh'
-        
-        outdVpArr=np.array([])
-        outdRhoArr=np.array([])
-        outdVsvArr=np.array([])
-        outdVshArr=np.array([])
-        
-        outdVpArr=np.append(outdVpArr, self.numsub)
-        outdRhoArr=np.append(outdRhoArr, self.numsub)
-        outdVsvArr=np.append(outdVsvArr, self.numsub)
-        outdVshArr=np.append(outdVshArr, self.numsub)
-        depthInter=np.array([])
-        NZ=np.array([0],dtype=int)
-        Lnz=0
-        for numsub in self.numsub-np.arange(self.numsub)-1: # maxdep ~ 0
-            depthInter=np.append(depthInter, self.zArrLst[numsub])
-            NZ=np.append(NZ, NZ[Lnz]+self.zArrLst[numsub].size)
-            Lnz=Lnz+1
-        
-        depthInter=depthInter[::-1] # 0 ~ maxdep
-        L=depthInter.size
-        VpArrLst=[]
-        VsArrLst=[]
-        RhoArrLst=[]
-        
-        # dd=depthInter[::-1]
-        # Lnz=0
-        # for numsub in self.numsub-np.arange(self.numsub)-1: # maxdep ~ 0
-        #     # print NZ[Lnz+1]
-        #     print dd[NZ[Lnz]:NZ[Lnz+1]]
-        #     Lnz=Lnz+1
-        # return
-        LH=0
-        dVpmin=999
-        dVsmin=999
-        drhomin=999
-        dVpmax=-999
-        dVsmax=-999
-        drhomax=-999
-        if avgfname!=None:
-            for colat in self.xArrLst[0]:
-                for lon in self.yArrLst[0]:
-                    lat=90.-colat
-                    infname=datadir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    inArr=np.loadtxt(infname)
-                    depth=inArr[:,0]
-                    Vs=inArr[:,1]
-                    Vp=inArr[:,2]
-                    Rho=inArr[:,3]
-                    VpInter=np.interp(depthInter, depth, Vp)
-                    VsInter=np.interp(depthInter, depth, Vs)
-                    RhoInter=np.interp(depthInter, depth, Rho)
-                    
-                    aVpInter=np.interp(depthInter, adepth, aVp)
-                    aVsInter=np.interp(depthInter, adepth, aVs)
-                    aRhoInter=np.interp(depthInter, adepth, arho)
-                    
-                    if Vsmin!=999:
-                        LArr=VsInter<Vsmin
-                        if VsInter.min()<Vsmin:
-                            UArr=VsInter>=Vsmin
-                            Vs1=Vsmin*LArr
-                            Vs2=VsInter*UArr
-                            VsInter=npr.evaluate('Vs1+Vs2')
-                            # Brocher's relation
-                            Vpmin=0.9409+2.0947*Vsmin-0.8206*Vsmin**2+0.2683*Vsmin**3-0.0251*Vsmin**4
-                            Vp1=Vpmin*LArr
-                            Vp2=VpInter*UArr
-                            VpInter=npr.evaluate('Vp1+Vp2')
-                            
-                            Rhomin=1.6612*Vpmin-0.4721*Vpmin**2+0.0671*Vpmin**3-0.0043*Vpmin**4+0.000106*Vpmin**5
-                            Rho1=Rhomin*LArr
-                            Rho2=RhoInter*UArr
-                            RhoInter=npr.evaluate('Rho1+Rho2')
-                            
-                    VpInter=npr.evaluate('VpInter-aVpInter')
-                    VsInter=npr.evaluate('VsInter-aVsInter')
-                    RhoInter=npr.evaluate('RhoInter-aRhoInter')
-                    
-                    VpArrLst.append(VpInter[::-1])
-                    VsArrLst.append(VsInter[::-1])
-                    RhoArrLst.append(RhoInter[::-1]) # maxdep ~ 0
-                    LH=LH+1
-        else:
-            for colat in self.xArrLst[0]:
-                for lon in self.yArrLst[0]:
-                    lat=90.-colat
-                    infname=datadir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    inArr=np.loadtxt(infname)
-                    depth=inArr[:,0]
-                    Vs=inArr[:,1]
-                    Vp=inArr[:,2]
-                    Rho=inArr[:,3]
-                    VpInter=np.interp(depthInter, depth, Vp)
-                    VsInter=np.interp(depthInter, depth, Vs)
-                    RhoInter=np.interp(depthInter, depth, Rho)
-                    
-                    if Vsmin!=999:
-                        LArr=VsInter<Vsmin
-                        if VsInter.min()<Vsmin:
-                            print "Revaluing: "+str(lon)+" "+str(lat)+" "+str(VsInter.min())
-                            
-                            UArr=VsInter>=Vsmin
-                            Vs1=Vsmin*LArr
-                            Vs2=VsInter*UArr
-                            VsInter=npr.evaluate('Vs1+Vs2')
-                            # Brocher's relation
-                            Vpmin=0.9409+2.0947*Vsmin-0.8206*Vsmin**2+0.2683*Vsmin**3-0.0251*Vsmin**4
-                            Vp1=Vpmin*LArr
-                            Vp2=VpInter*UArr
-                            VpInter=npr.evaluate('Vp1+Vp2')
-                            
-                            Rhomin=1.6612*Vpmin-0.4721*Vpmin**2+0.0671*Vpmin**3-0.0043*Vpmin**4+0.000106*Vpmin**5
-                            Rho1=Rhomin*LArr
-                            Rho2=RhoInter*UArr
-                            RhoInter=npr.evaluate('Rho1+Rho2')
-                    # dVpmin=min(dVpmin, VpInter.min())
-                    # dVpmax=max(dVpmax, VpInter.max())
-                    # dVsmin=min(dVsmin, VsInter.min())
-                    # dVsmax=max(dVsmax, VsInter.max())
-                    # drhomin=min(drhomin, RhoInter.min())
-                    # drhomax=max(drhomax, RhoInter.max())
-                    # 
-                    VpArrLst.append(VpInter[::-1])
-                    VsArrLst.append(VsInter[::-1])
-                    RhoArrLst.append(RhoInter[::-1]) # maxdep ~ 0
-                    
-                    
-                    # # outfname=outdir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    # # outArr=np.append(depthInter, VsInter)
-                    # # outArr=np.append(outArr, VpInter)
-                    # # outArr=np.append(outArr, RhoInter)
-                    # # outArr=outArr.reshape((4,L))
-                    # # outArr=outArr.T
-                    # # np.savetxt(outfname,outArr,fmt='%g') 
-                    
-                    LH=LH+1
-        print LH
-        # print 'Vp:', dVpmin, dVpmax, 'Vs:',dVsmin,dVsmax,'rho:',drhomin,drhomax
-        print 'End of Reading data!'
-        # return
-        Lnz=0
-        for numsub in self.numsub-np.arange(self.numsub)-1:
-            nx=self.xArrLst[numsub].size
-            ny=self.yArrLst[numsub].size
-            nz=self.zArrLst[numsub].size
-            nblock=nx*ny*nz
-            outdVpArr=np.append(outdVpArr, nblock)
-            outdRhoArr=np.append(outdRhoArr, nblock)
-            outdVsvArr=np.append(outdVsvArr, nblock)
-            outdVshArr=np.append(outdVshArr, nblock)
-            # Lh=0
-            for Lh in np.arange(LH):
-            # for colat in self.xArrLst[numsub]:
-            #     for lon in self.yArrLst[numsub]:
-                    # dVp=VpArrLst[Lh]
-                    # dVp=dVp[NZ[Lnz]:NZ[Lnz+1]]
-                    # dVs=VsArrLst[Lh]
-                    # dVsv=dVs[NZ[Lnz]:NZ[Lnz+1]]
-                    # dVsh=dVsv
-                    # dRho=RhoArrLst[Lh]
-                    # dRho=dRho[NZ[Lnz]:NZ[Lnz+1]]
-                    outdVpArr=np.append(outdVpArr, VpArrLst[Lh][NZ[Lnz]:NZ[Lnz+1]])
-                    outdRhoArr=np.append(outdRhoArr, RhoArrLst[Lh][NZ[Lnz]:NZ[Lnz+1]])
-                    outdVsvArr=np.append(outdVsvArr, VsArrLst[Lh][NZ[Lnz]:NZ[Lnz+1]])
-                    outdVshArr=np.append(outdVshArr, VsArrLst[Lh][NZ[Lnz]:NZ[Lnz+1]])
-                    # Lh=Lh+1
-            Lnz=Lnz+1
-        print 'Saving data!'
-        np.savetxt(dVpfname, outdVpArr, fmt='%s')
-        np.savetxt(dRhofname, outdRhoArr, fmt='%s')
-        np.savetxt(dVsvfname, outdVsvArr, fmt='%s')
-        np.savetxt(dVshfname, outdVshArr, fmt='%s')
-        return
-    
-    def CheckInputModel(self,datadir, dataprx='', datasfx='_mod'):
-        L=0
-        Le=0
-        for numsub in np.arange(self.numsub):
-            xArr=self.xArrLst[numsub]
-            yArr=self.yArrLst[numsub]
-            for x in xArr:
-                for y in yArr:
-                    lat=90.-x
-                    lon=y
-                    # print lon, lat
-                    infname=datadir+'/'+dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx
-                    Le=Le+1
-                    if not os.path.isfile(infname):
-                        print dataprx+'%g' %(lon)+'_'+'%g' %(lat)+datasfx + ' NOT exists!' 
-                        L=L+1
-                        Le=Le-1
-        print 'Number of lacked-data grid points: ',L, Le
-        return
-    
-
-class OneDimensionalModel(object):
-    """
-    Simple class dealing with 1D earth models.
-    """
-    def __init__(self, model_name):
-        """
-        :param model_name: The name of the used model. Possible names are:
-            'ak135-F'
-        """
-        if model_name.lower() == "ak135-f":
-            self._read_ak135f()
-        else:
-            msg = "Unknown model '%s'. Possible models: %s" % (
-                model_name, ", ".join(MODELS.keys()))
-            raise ValueError(msg)
-
-    def _read_ak135f(self):
-        data = np.loadtxt(MODELS["ak135-f"], comments="#")
-
-        self._depth_in_km = data[:, 0]
-        self._density = data[:, 1]
-        self._vp = data[:, 2]
-        self._vs = data[:, 3]
-        self._Q_kappa = data[:, 4]
-        self._Q_mu = data[:, 5]
-
-    def get_value(self, value_name, depth):
-        """
-        Returns a value at a requested depth. Currently does a simple linear
-        interpolation between the two closest values.
-        """
-        if value_name not in EXPOSED_VALUES:
-            msg = "'%s' is not a valid value name. Valid names: %s" % \
-                (value_name, ", ".join(EXPOSED_VALUES))
-            raise ValueError(msg)
-        return np.interp(depth, self._depth_in_km,
-                         getattr(self, "_" + value_name))
-    
-    
 #########################################################################
 #- define submodel model class
 #########################################################################
@@ -866,7 +366,6 @@ class ses3d_model(object):
         else:
             dz = MDataset[modelname].attrs['dz']
             depth = MDataset[modelname].attrs['depth']
-            print depth
             depthArr = MDataset[modelname].attrs['depthArr']
             if maxdepth > depth[-1]:
                 raise ValueError('maximum depth is too large!')
@@ -884,7 +383,7 @@ class ses3d_model(object):
         ##############################
         # Get block information
         ##############################
-        radius=6371
+        radius=6371.
         dx=dlat
         dy=dlon
         xmin = 90. - self.lat_max
@@ -929,10 +428,14 @@ class ses3d_model(object):
         vsindex =  MDataset[modelname].attrs['vs']
         vpindex =  MDataset[modelname].attrs['vp']
         rhoindex =  MDataset[modelname].attrs['rho']
-        try:
-            group = MDataset[modelname+'_block']
-        except:
+        if MDataset[modelname].attrs['isblock']:
             group = MDataset[modelname]
+        else:
+            try:
+                group = MDataset[modelname+'_block']
+            except:
+                group = MDataset[modelname]
+                warnings.warn('Input model is NOT block model! ', UserWarning, stacklevel=1)
         for k in xrange(self.nsubvol):
             self.m[k].dvsv = np.zeros((nx, ny, nzArr[k]))
             self.m[k].dvsh = np.zeros((nx, ny, nzArr[k]))
@@ -955,10 +458,17 @@ class ses3d_model(object):
             self.m[k].lon_rot = self.m[k].lon_rot.T
         return
             
-        
-        
-        
-        
+    def vsLimit(self, vsmin):
+        vpmin=0.9409+2.0947*vsmin-0.8206*vsmin**2+0.2683*vsmin**3-0.0251*vsmin**4
+        rhomin=1.6612*vpmin-0.4721*vpmin**2+0.0671*vpmin**3-0.0043*vpmin**4+0.000106*vpmin**5
+        for k in xrange(self.nsubvol):
+            indexS = self.m[k].dvsv < vsmin
+            indexL = np.logical_not(indexS)
+            self.m[k].dvsv = indexS *  vsmin + indexL * self.m[k].dvsv
+            self.m[k].dvsh = indexS * vsmin + indexL * self.m[k].dvsh
+            self.m[k].dvp = indexS * vpmin + indexL * self.m[k].dvp
+            self.m[k].drho = indexS * rhomin + indexL * self.m[k].drho
+        return
     
     #########################################################################
     #- Compute the L2 norm.
@@ -1152,7 +662,7 @@ class ses3d_model(object):
     #########################################################################
     #- convert to vtk format
     #########################################################################
-    def convert_to_vtk(self, directory, filename, verbose=False):
+    def convert_to_vtk(self, directory, modelname, filename, verbose=False):
         """ convert ses3d model to vtk format for plotting with Paraview, VisIt, ... .
         convert_to_vtk(self,directory,filename,verbose=False):
         """
@@ -1187,7 +697,10 @@ class ses3d_model(object):
                         phi=self.m[n].lon[j]
                         #- rotate coordinate system
                         if self.phi!=0.0:
-                            theta,phi=rotate_coordinates(self.n,-self.phi,theta,phi)
+                            lat_rot, lon_rot = rotations.rotate_lat_lon(90.-theta, phi, self.n, -self.phi)
+                            theta = 90.0 - lar_rot
+                            phi = lon_rot
+                            # theta,phi=rotate_coordinates(self.n,-self.phi,theta,phi)
                             #- transform to cartesian coordinates and write to file
                         theta=theta*np.pi/180.0
                         phi=phi*np.pi/180.0
@@ -1243,10 +756,18 @@ class ses3d_model(object):
             idy[ny[n]-1]=ny[n]-2
             idz=np.arange(nz[n])
             idz[nz[n]-1]=nz[n]-2
+            if modelname =='dvsv':
+                v = self.m[n].dvsv 
+            if modelname =='dvsh':
+                v = self.m[n].dvsh 
+            if modelname =='drho':
+                v = self.m[n].drho 
+            if modelname =='dvp':
+                v = self.m[n].dvp
             for i in idx:
                 for j in idy:
                     for k in idz:
-                        fid.write(str(self.m[n].v[i,j,k])+'\n')
+                        fid.write(str(v[i,j,k])+'\n')
         #- clean up
         fid.close()
         return
@@ -1286,7 +807,10 @@ class ses3d_model(object):
                         phi=self.m[n].lon[j]
                         #- rotate coordinate system
                         if self.phi!=0.0:
-                            theta,phi=rotate_coordinates(self.n,-self.phi,theta,phi)
+                            lat_rot, lon_rot = rotations.rotate_lat_lon(90.-theta, phi, self.n, -self.phi)
+                            theta = 90.0 - lar_rot
+                            phi = lon_rot
+                            # theta,phi=rotate_coordinates(self.n,-self.phi,theta,phi)
                             #- transform to cartesian coordinates and write to file
                         theta=theta*np.pi/180.0
                         phi=phi*np.pi/180.0
@@ -1342,10 +866,18 @@ class ses3d_model(object):
             idy[ny[n]-1]=ny[n]-2
             idz=np.arange(nz[n])
             idz[nz[n]-1]=nz[n]-2
+            if modelname =='dvsv':
+                v = self.m[n].dvsv 
+            if modelname =='dvsh':
+                v = self.m[n].dvsh 
+            if modelname =='drho':
+                v = self.m[n].drho 
+            if modelname =='dvp':
+                v = self.m[n].dvp
             for i in idx:
                 for j in idy:
                     for k in idz:
-                        fid.write(str(self.m[n].v[i,j,k])+'\n')
+                        fid.write(str(v[i,j,k])+'\n')
         #- clean up
         fid.close()
         return
@@ -1548,11 +1080,12 @@ class ses3d_model(object):
             if self.phi!=0.0:
                 lat_rot=np.zeros(np.shape(lon),dtype=float)
                 lon_rot=np.zeros(np.shape(lat),dtype=float)
-                for idx in np.arange(nx):
-                    for idy in np.arange(ny):
-                        colat=90.0-lat[idx,idy]
-                        lat_rot[idx, idy], lon_rot[idx, idy]=rotate_coordinates(self.n,-self.phi, colat, lon[idx,idy])
-                        lat_rot[idx, idy]=90.0-lat_rot[idx, idy]
+                lat_rot, lon_rot = rotations.rotate_lat_lon(lat, lon, self.n, -self.phi) 
+                # for idx in np.arange(nx):
+                #     for idy in np.arange(ny):
+                #         colat=90.0-lat[idx,idy]
+                #         lat_rot[idx, idy], lon_rot[idx, idy]=rotate_coordinates(self.n,-self.phi, colat, lon[idx,idy])
+                #         lat_rot[idx, idy]=90.0-lat_rot[idx, idy]
                 lon=lon_rot
                 lat=lat_rot
         #- convert to map coordinates and plot

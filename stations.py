@@ -122,7 +122,7 @@ class StaLst(object):
                     self.append(StaInfo (stacode=stacode, network=network, lon=lon, lat=lat ))
         return
 
-    def HomoStaLst(self, minlat, Nlat, minlon, Nlon, dlat, dlon, factor=100, net='SES', prx='LF'):
+    def HomoStaLst(self, minlat, Nlat, minlon, Nlon, dlat, dlon, net='SES', prx='LF'):
         for ilon in xrange(Nlon):
             for ilat in xrange(Nlat):
                 lon=minlon+ilon*dlon
@@ -130,6 +130,8 @@ class StaLst(object):
                 elevation=0.0
                 stacode=prx+str(ilon)+'S'+str(ilat)
                 self.stations.append(StaInfo (stacode=stacode, network=net, lon=lon, lat=lat))
+                if ilon == Nlon -1 and ilat == Nlat -1:
+                    print 'maxlat=', lat, 'maxlon=',lon
         return
     
     def write(self, outdir, eventnb=1):
@@ -140,7 +142,7 @@ class StaLst(object):
             for station in self.stations:
                 staname=station.network+'.'+station.stacode+'.___'
                 f.writelines('%s\n' %staname )
-                f.writelines('%2.6f %3.6f -0.0\n' %(90.-station.lat, station.lon) )
+                f.writelines('%2.6f %3.6f 0.0\n' %(90.-station.lat, station.lon) )
         return
     
     def GetInventory(self, outfname=None, chans=['UP'], source='CU'):
