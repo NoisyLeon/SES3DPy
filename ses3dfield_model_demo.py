@@ -1,4 +1,4 @@
-import SES3DPy
+import fields
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import copy
@@ -16,7 +16,7 @@ recfile='/projects/life9360/software/ses3d_r07_b/INPUT/recfile_1'
 # rotationfile='/lustre/janus_scratch/life9360/bug_test/TOOLS/rotation_parameters.txt'
 # setupfile='/lustre/janus_scratch/life9360/bug_test/INPUT/setup'
 # recfile='/lustre/janus_scratch/life9360/bug_test/INPUT/recfile_1'
-sfield=SES3DPy.ses3d_fields(datadir, rotationfile, setupfile, recfile);
+sfield=fields.ses3d_fields(datadir, rotationfile, setupfile, recfile);
 mfname='vsv'
 sfield.plot_depth_slice(mfname, 3, 2500, 3500,  stations=False, res="i", mapflag='regional_merc',\
     mapfactor=2)

@@ -4,6 +4,14 @@ import matplotlib.pyplot as plt
 import os
 
 class Qmodel(object):
+    """ An object for the computation of Standard Linear Solid(SLS) model.
+    ========================================================
+    Parameters:
+    QArr              - Q value array to fit
+    fmin, fmax    - minimum/maximum frequency
+    NumbRM      - number of relaxation mechanisms
+    ========================================================
+    """
     
     def __init__(self, QArr=np.array([50.0, 100.0, 500.0]), fmin=0.01, fmax=0.1, NumbRM=3):
         self.QArr=QArr
@@ -13,6 +21,8 @@ class Qmodel(object):
         return
     
     def Qcontinuous(self, tau_min=1.0e-3, tau_max=1.0e2, plotflag=True ):
+        """Computations for continuous absorption-band model 
+        """
         #------------------
         #- initializations 
         #------------------
@@ -47,7 +57,7 @@ class Qmodel(object):
     
     def Qdiscrete(self, max_it=30000, T_0=0.2, d=0.9998, f_ref=1.0/20.0, alpha=0.0):
         """
-        Computation and visualisation of a discrete absorption-band model.
+        Computation and visualization of a discrete absorption-band model.
         ====================================================================
         For a given array of target Q values, the code determines the optimal relaxation
         times and weights using simulated annealing algorithmn. This is done within in specified
@@ -56,8 +66,14 @@ class Qmodel(object):
         max_it - number of iterations
         T_0      - the initial random step length
         d          - the temperature decrease (from one sample to the next by a factor of d)
-        f_ref    - Reference frequency in Hz
-        alpha  - exponent (alpha) for frequency-dependent Q, set to 0 for frequency-independent Q
+        f_ref     - Reference frequency in Hz
+        alpha   - exponent (alpha) for frequency-dependent Q, set to 0 for frequency-independent Q
+        Output:
+        self.D             - weight array
+        self.tau_s       - relaxation time array
+        self.D_pert    - D_pert
+        self.chi          - 
+        self.Q_target - target Q value array
         ====================================================================
         """
         #------------------
@@ -225,6 +241,8 @@ class Qmodel(object):
         return
     
     def PlotQdiscrete( self, D=None, tau_s=None, f_ref=1.0/20.0, alpha=0.0 ):
+        """Plot discrete absorption-band model.
+        """
         if D==None or tau_s==None or D.size!=self.NumbRM:
             D=self.D
             tau_s=self.tau_s
@@ -305,6 +323,8 @@ class Qmodel(object):
         return
     
     def write(self, outdir):
+        """Write relaxation time and weight to output directory
+        """
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         relax_file = (

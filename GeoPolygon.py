@@ -7,9 +7,9 @@ class GeoPolygon(object):
         self.lonArr=np.array([]);
         self.latArr=np.array([]);
         
-    def PlotPolygon(self, mybasemap, alpha=0.7, hatch='x'):
+    def PlotPolygon(self, inbasemap, alpha=0.7, hatch='x'):
         
-        x, y = mybasemap(self.lonArr, self.latArr);
+        x, y = inbasemap(self.lonArr, self.latArr);
         basinArr=np.append(x,y);
         N=x.size;
         basinArr=basinArr.reshape((2,N));
@@ -104,9 +104,9 @@ class GeoPolygonLst(object):
             f.close()
         print 'End of reading', NumbC, 'geological polygons';
         return
-    def PlotPolygon(self, mybasemap, alpha=0.3, hatch='x'):
+    def PlotPolygon(self, inbasemap, alpha=0.3, hatch='x'):
         for geopolygon in  self.geopolygons:
-            geopolygon.PlotPolygon(mybasemap, alpha=alpha, hatch=hatch)
+            geopolygon.PlotPolygon(inbasemap, alpha=alpha, hatch=hatch)
         return
     
         

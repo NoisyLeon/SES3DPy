@@ -3,16 +3,16 @@ import obspy
 
 class StaInfo(object):
     """
-    An object contains a station information several methods for station related analysis.
+    An object contains a station information
     ========================================================================
     General Parameters:
-    stacode     - station name
+    stacode    - station name
     network    - network
-    lon,lat       - position for station
-    elevation   - elevation
+    lon,lat    - position for station
+    elevation  - elevation
     ========================================================================
     """
-    def __init__(self, stacode=None, network='SES',  lat=None, lon=None, elevation=None ):
+    def __init__(self, stacode=None, network='SES',  lat=None, lon=None, elevation=0.0 ):
 
         self.stacode=stacode
         self.network=network
@@ -65,7 +65,7 @@ class StaLst(object):
 
     def __len__(self):
         """
-        Return the number of Traces in the StaLst object.
+        Return the number of StaInfos in the StaLst object.
         """
         return len(self.stations)
 
@@ -122,7 +122,18 @@ class StaLst(object):
                     self.append(StaInfo (stacode=stacode, network=network, lon=lon, lat=lat ))
         return
 
-    def HomoStaLst(self, minlat, Nlat, minlon, Nlon, dlat, dlon, net='SES', prx='LF'):
+    def HomoStaLst(self, minlat, Nlat, minlon, Nlon, dlat, dlon, net='SES', prx=''):
+        """
+        Generate equal grid interval station list
+        ========================================================
+        Input Parameters:
+        minlat, minlon  - minimum latitude/longitude
+        Nlat, Nlon      - number of latitude/longitude grid
+        dlat, dlon      - latitude/longitude interval
+        net             - network
+        prx             - prefix for station name
+        ========================================================
+        """
         for ilon in xrange(Nlon):
             for ilat in xrange(Nlat):
                 lon=minlon+ilon*dlon
@@ -135,6 +146,8 @@ class StaLst(object):
         return
     
     def write(self, outdir, eventnb=1):
+        """Write station list to output directory
+        """
         L=len(self.stations)
         outfname=outdir+'/recfile_%d' %eventnb
         with open(outfname,'wb') as f:
@@ -145,17 +158,17 @@ class StaLst(object):
                 f.writelines('%2.6f %3.6f 0.0\n' %(90.-station.lat, station.lon) )
         return
     
-    def GetInventory(self, outfname=None, chans=['UP'], source='CU'):
+    def GetInventory(self, outfname=None, chans=['BXZ'], source='CU'):
         """
         Get obspy inventory, used for ASDF dataset
-        ========================================================
+        ==============================================================================
         Input Parameters:
         outfname  - output stationxml file name (default = None, no output)
-        chans        - channel list
-        source       - source string
+        chans     - channel list
+        source    - source string
         Output:
         obspy.core.inventory.inventory.Inventory object, stationxml file(optional)
-        ========================================================
+        ==============================================================================
         """
         stations=[]
         total_number_of_channels=len(chans)
@@ -164,10 +177,10 @@ class StaLst(object):
         for sta in self.stations:
             channels=[]
             for chan in chans:
-                channel=obspy.core.inventory.channel.Channel(code=chan, location_code='01', latitude=sta.y/100000., longitude=sta.x/100000.,
-                        elevation=sta.z, depth=0.0)
+                channel=obspy.core.inventory.channel.Channel(code=chan, location_code='01', latitude=sta.lat, longitude=sta.lon,
+                        elevation=sta.elevation, depth=0.0)
                 channels.append(channel)
-            station=obspy.core.inventory.station.Station(code=sta.stacode, latitude=sta.y/100000., longitude=sta.x/100000., elevation=sta.z,
+            station=obspy.core.inventory.station.Station(code=sta.stacode, latitude=sta.lat, longitude=sta.lon, elevation=sta.elevation,
                     site=site, channels=channels, total_number_of_channels = total_number_of_channels, creation_date = creation_date)
             stations.append(station)
         network=obspy.core.inventory.network.Network(code=sta.network, stations=stations)

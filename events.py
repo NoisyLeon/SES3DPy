@@ -11,8 +11,12 @@ class STF(obspy.core.trace.Trace):
     """
     An object inherited from obspy Trace to handle source time function
     """
-    
     def BruneSignal(self, dt, npts, tauR=1.):
+        """
+        Reference:
+        Brune, J.N., 1970. Tectonic stress and the spectra of seismic shear waves from earthquakes.
+            Journal of geophysical research, 75(26), pp.4997-5009.
+        """
         time=np.arange(npts)*dt
         self.stats.npts=npts
         self.stats.delta=dt
@@ -20,6 +24,11 @@ class STF(obspy.core.trace.Trace):
         return
     
     def HaskellSignal(self, dt, npts, k=31.6, B=0.24):
+        """
+        References:
+        Haskell, N.A., 1967. Analytic approximation for the elastic radiation from a contained underground explosion.
+            Journal of Geophysical Research, 72(10), pp.2583-2587.
+        """
         time=np.arange(npts)*dt
         self.stats.npts=npts
         self.stats.delta=dt
@@ -28,6 +37,11 @@ class STF(obspy.core.trace.Trace):
         return
     
     def vonSeggernSignal(self, dt, npts, k=16.8, B=2.04):
+        """
+        References:
+        von Seggern, D. and Blandford, R., 1972. Source time functions and spectra for underground nuclear explosions.
+            Geophysical Journal International, 31(1-3), pp.83-97.
+        """
         time=np.arange(npts)*dt
         self.stats.npts=npts
         self.stats.delta=dt
@@ -36,6 +50,11 @@ class STF(obspy.core.trace.Trace):
         return
     
     def HelmbergerSignal(self, dt, npts, k=16.8, B=2.04):
+        """
+        References:
+        Helmberger, D.V. and Hadley, D.M., 1981. Seismic source functions and attenuation from local and teleseismic observations
+            of the NTS events JORUM and HANDLEY. Bulletin of the Seismological Society of America, 71(1), pp.51-67.
+        """
         time=np.arange(npts)*dt
         self.stats.npts=npts
         self.stats.delta=dt
@@ -44,6 +63,8 @@ class STF(obspy.core.trace.Trace):
         return
     
     def StepSignal(self, dt, npts):
+        """Step function
+        """
         time=np.arange(npts)*dt
         self.stats.npts=npts
         self.stats.delta=dt
@@ -51,6 +72,8 @@ class STF(obspy.core.trace.Trace):
         return
     
     def RickerWavelet(self, dt, npts, fpeak):
+        """Ricker wavelet
+        """
         time=np.arange(npts)*dt
         self.stats.npts=npts
         self.stats.delta=dt
@@ -59,8 +82,7 @@ class STF(obspy.core.trace.Trace):
         return
     
     def GaussianSignal(self, dt, npts, fc, t0=None):
-        """
-        Gaussian signal defined in sw4 manual(p 17)
+        """Gaussian signal defined in sw4 manual(p 17)
         """
         time=np.arange(npts)*dt
         self.stats.npts=npts
@@ -77,8 +99,7 @@ class STF(obspy.core.trace.Trace):
         return
 
     def RickerIntSignal(self, dt, npts, fc, t0=None):
-        """
-        RickerInt signal defined in sw4 manual(p 18)
+        """RickerInt signal defined in sw4 manual(p 18)
         """
         time=np.arange(npts)*dt
         self.stats.npts=npts
@@ -95,6 +116,8 @@ class STF(obspy.core.trace.Trace):
         return 
     
     def dofft(self, diff=True):
+        """Do FFT to get spectrum
+        """
         self.diff=diff
         npts=self.data.size
         Ns=1<<(npts-1).bit_length()
@@ -116,6 +139,8 @@ class STF(obspy.core.trace.Trace):
         return
     
     def plotfreq(self):
+        """Plot spectrum
+        """
         try:
             freq=self.freq
             hf=self.hf
@@ -133,6 +158,8 @@ class STF(obspy.core.trace.Trace):
         return
     
     def plotstf(self, fmax=None):
+        """Plot source time function and its corresponding time derivative
+        """
         if fmax==None:
             try:
                 fmax=self.fcenter*2.5
@@ -169,8 +196,11 @@ class STF(obspy.core.trace.Trace):
     
     
 class ses3dCatalog(obspy.core.event.Catalog):
-    
+    """Catalog object inherited from obspy catalog for ses3d preprocessing
+    """
     def add_event(self, longitude, latitude, depth, event_type='earthquake', focalmechanism=None):
+        """Add event to the catalog
+        """
         try:
             tensor = focalmechanism.moment_tensor.tensor
             inputstr="mopad describe %e,%e,%e,%e,%e,%e" %(tensor.m_rr, tensor.m_tt, tensor.m_pp, tensor.m_rt, tensor.m_rp, tensor.m_tp)
@@ -191,6 +221,8 @@ class ses3dCatalog(obspy.core.event.Catalog):
         return 
     
     def add_explosion(self, longitude, latitude, depth, m0):
+        """Add explosive event with moment = m0 to catalog
+        """
         tensor = obspy.core.event.source.Tensor(m_rr=m0, m_tt=m0, m_pp=m0,
                                                  m_tp=0., m_rt=0., m_rp=0.)
         moment_tensor = obspy.core.event.source.MomentTensor(tensor=tensor, scalar_moment=m0)
@@ -199,6 +231,8 @@ class ses3dCatalog(obspy.core.event.Catalog):
         return
     
     def add_earthquake(self, longitude, latitude, depth, m_rr, m_tt, m_pp, m_tp, m_rt, m_rp):
+        """Add event with given moment tensor to catalog
+        """
         tensor = obspy.core.event.source.Tensor(m_rr=m_rr, m_tt=m_tt, m_pp=m_pp,
                                                  m_tp=m_tp, m_rt=m_rt, m_rp=m_rp)
         moment_tensor = obspy.core.event.source.MomentTensor(tensor=tensor)
@@ -207,6 +241,8 @@ class ses3dCatalog(obspy.core.event.Catalog):
         return
     
     def write(self, outdir, config=None, nt=None, dt = None, output_folder=None, ssamp=None, outdisp= None):
+        """Write event file to ouput directory 
+        """
         try:
             nt = config.number_of_time_steps
             dt = config.time_increment_in_s
@@ -286,6 +322,8 @@ class ses3dCatalog(obspy.core.event.Catalog):
         return
     
     def plotevent(self):
+        """Plot event
+        """
         if len(self.events) == 1:
             self.events[0].plot(kind=['ortho', 'beachball', 'local'])
         else:

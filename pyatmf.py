@@ -99,7 +99,7 @@ class ATMFDataSet(h5py.File):
         """
         Vertical profile extension
         Only suitable when input is upper mantle model( zmax < 410km)
-        ========================================================
+        ================================================================================================
         Algorithmn:
         step 1: interpolate the profile with given interval( dz ) and depth range (depthlst)
         step 2: extend to 410 km / maxdepth ( if maxdepth < 410 km) in ak135 model
@@ -107,19 +107,19 @@ class ATMFDataSet(h5py.File):
         Note: step 2 and 3 need further test !!!
         ------------------------------------------------------------------------------------------------
         Input Parameters:
-        inname         - input model(group) name
-        outname       - output model(group) name
-        block             - output is block model or not
-        refname        - reference model(group) name
-        dz, depthlst   - list for depth interval and bottom depth (grid)
-        maxdepth      - maximum depth to extend (grid)
-        outdir            - txt output directory( default = None)
-        header           - header information
-        dz2, dz3         - depth interval for step 2, 3
+        inname       - input model(group) name
+        outname      - output model(group) name
+        block        - output is block model or not
+        refname      - reference model(group) name
+        dz, depthlst - list for depth interval and bottom depth (grid)
+        maxdepth     - maximum depth to extend (grid)
+        outdir       - txt output directory( default = None)
+        header       - header information
+        dz2, dz3     - depth interval for step 2, 3
         ------------------------------------------------------------------------------------------------
         Output:
         
-        ========================================================
+        =================================================================================================
         """
         # Generate numpy array for depth interpolation
         dz = np.asarray(dz)

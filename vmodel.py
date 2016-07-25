@@ -1,3 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+A python module for SES3D block file manipulation.
+Modified from python script in SES3D package( Andreas Fichtner and Lion Krischer)
+    
+:Copyright:
+    Author: Lili Feng
+    Graduate Research Assistant
+    CIEI, Department of Physics, University of Colorado Boulder
+    email: lili.feng@colorado.edu
+"""
+
 import numpy as np
 import numpy.random as rd
 import matplotlib.pyplot as plt
@@ -13,7 +25,14 @@ import h5py
 #- define submodel model class
 #########################################################################
 class ses3d_submodel(object):
-    """ class defining an ses3d submodel
+    """
+    Class defining an ses3d submodel
+    ===============================================================================
+    Parameters:
+    lat, lon, r            - latitude, longitude, radius array ( grid position)
+    lat_rot, lon_rot       - rotated( or meshgrid ) latitude, longitude array
+    dvsv, dvsh, dvp, drho  - Vsv, Vsh, Vp, density model ( block )
+    ===============================================================================
     """
     def __init__(self):
         #- coordinate lines
@@ -33,6 +52,14 @@ class ses3d_submodel(object):
 class ses3d_model(object):
     """
     An object for reading, writing, plotting and manipulating ses3d model
+    ========================================================
+    Parameters:
+    nsubvol          - number of subvolumes
+    global_regional  - plot type
+    m                - list to store sub models
+    phi              - rotation angle
+    n                - rotation axis
+    ========================================================
     """
     def __init__(self):
         """ initiate the ses3d_model class
@@ -52,10 +79,6 @@ class ses3d_model(object):
         self.n = np.array([0., 1., 0.])
         return
     
-    
-    #########################################################################
-    #- copy models
-    #########################################################################
     def copy(self):
         """ Copy a model
         """
@@ -83,9 +106,6 @@ class ses3d_model(object):
             res.m.append(subvol)
         return res
 
-    #########################################################################
-    #- multiplication with a scalar
-    #########################################################################
     def __rmul__(self, factor):
         """ override left-multiplication of an ses3d model by a scalar factor
         """
@@ -113,9 +133,6 @@ class ses3d_model(object):
             res.m.append(subvol)
         return res
     
-    #########################################################################
-    #- adding two models
-    #########################################################################
     def __add__(self,other_model):
         """ override addition of two ses3d models
         """
@@ -143,12 +160,8 @@ class ses3d_model(object):
             res.m.append(subvol)
         return res
     
-    #########################################################################
-    #- read a 3D model
-    #########################################################################
     def read_block(self, directory, verbose=False):
-        """ read an ses3d model from a file
-        read(self, directory, filename, verbose=False):
+        """ read ses3d block files from a directory
         """
         #- read block files ====================================================
         fid_x=open(directory+'/block_x','r')
@@ -219,8 +232,7 @@ class ses3d_model(object):
         return
     
     def write_block(self, directory, verbose=False):
-        """ read an ses3d model from a file
-        read(self, directory, filename, verbose=False):
+        """ write block files to a directory
         """
         #- write block files ====================================================
         fid_x=open(directory+'/block_x','w')
@@ -254,6 +266,16 @@ class ses3d_model(object):
         return
     
     def read_model(self, directory, filename, verbose=False):
+        """ read a single ses3d model file from a directory, need block information
+        ==============================================================
+        Input format:
+        No. of subvolume
+        total No. for subvolume 1
+        ... (data in nx, ny, nz)
+        total No. for subvolume 2
+        ...
+        ==============================================================
+        """
         #- read model volume ==================================================
         fid_m=open(directory+'/'+filename,'r')
         if verbose==True:
@@ -278,20 +300,16 @@ class ses3d_model(object):
             idx = idx+n+1
         return
     
-    #########################################################################
-    #- write a 3D model to a file
-    #########################################################################
     def write_model(self, directory, filename, verbose=False):
-        """ write ses3d model to a file
-        Output format:
+        """ write a single ses3d model file to a directory, need block information
         ==============================================================
+        Output format:
         No. of subvolume
         total No. for subvolume 1
         ... (data in nx, ny, nz)
         total No. for subvolume 2
         ...
         ==============================================================
-        write(self, directory, filename, verbose=False)
         """
         if not os.path.isdir(directory):
             os.makedirs(directory)
@@ -319,16 +337,20 @@ class ses3d_model(object):
         return
     
     def read(self, directory, verbose=True):
+        """ read ses3d model from a directory
+        """
         print '===================== Read ses3d block model ====================='
         self.read_block(directory=directory, verbose=verbose)
         self.read_model(directory=directory, filename='dvsv', verbose=verbose)
         self.read_model(directory=directory, filename='dvsh', verbose=verbose)
         self.read_model(directory=directory, filename='drho', verbose=verbose)
         self.read_model(directory=directory, filename='dvp', verbose=verbose)
-        print '============================================================'
+        print '=================================================================='
         return
     
     def write(self, directory, verbose=True):
+        """ write ses3d model to a directory
+        """
         if not os.path.isdir(directory):
             os.makedirs(directory)
         print '===================== Write ses3d block model ====================='
@@ -337,36 +359,47 @@ class ses3d_model(object):
         self.write_model(directory=directory, filename='dvsh', verbose=verbose)
         self.write_model(directory=directory, filename='drho', verbose=verbose)
         self.write_model(directory=directory, filename='dvp', verbose=verbose)
-        print '============================================================'
+        print '==================================================================='
         return
     
-    def readh5model(self, infname, modelname, minlat=-999, maxlat=999, minlon=-999, maxlon=999, maxdepth=None ):
+    def readh5model(self, infname, groupname, minlat=-999, maxlat=999, minlon=-999, maxlon=999, maxdepth=None ):
+        """
+        Read hdf5 model
+        ================================================================================================
+        Input parameters:
+        infname         - input filename
+        groupname       - group name
+        minlon, maxlon  - defines study region, default is to read corresponding data from hdf5 file 
+        minlat, maxlat  -
+        maxdepth        - maximum depth to be truncated
+        ================================================================================================
+        """
         MDataset = h5py.File(infname)
         # get latitude/longitude information
-        if minlat < MDataset[modelname].attrs['minlat']:
-            minlat = MDataset[modelname].attrs['minlat']
-        if maxlat > MDataset[modelname].attrs['maxlat']:
-            maxlat = MDataset[modelname].attrs['maxlat']
-        if minlon < MDataset[modelname].attrs['minlon']:
-            minlon = MDataset[modelname].attrs['minlon']
-        if maxlon > MDataset[modelname].attrs['maxlon']:
-            maxlon = MDataset[modelname].attrs['maxlon']
-        dlon = MDataset[modelname].attrs['dlon']
-        dlat = MDataset[modelname].attrs['dlat']
+        if minlat < MDataset[groupname].attrs['minlat']:
+            minlat = MDataset[groupname].attrs['minlat']
+        if maxlat > MDataset[groupname].attrs['maxlat']:
+            maxlat = MDataset[groupname].attrs['maxlat']
+        if minlon < MDataset[groupname].attrs['minlon']:
+            minlon = MDataset[groupname].attrs['minlon']
+        if maxlon > MDataset[groupname].attrs['maxlon']:
+            maxlon = MDataset[groupname].attrs['maxlon']
+        dlon = MDataset[groupname].attrs['dlon']
+        dlat = MDataset[groupname].attrs['dlat']
         self.lat_min=minlat-dlat/2.
         self.lat_max=maxlat+dlat/2.
         self.lon_min=minlon-dlon/2.
         self.lon_max=maxlon+dlon/2.
         # determine number of subvolumes, max depth and whether to interpolate or not 
         if maxdepth == None:
-            dz = MDataset[modelname].attrs['dz']
-            depth = MDataset[modelname].attrs['depth']
-            depthArr = MDataset[modelname].attrs['depthArr']
+            dz = MDataset[groupname].attrs['dz']
+            depth = MDataset[groupname].attrs['depth']
+            depthArr = MDataset[groupname].attrs['depthArr']
             self.nsubvol = dz.size
         else:
-            dz = MDataset[modelname].attrs['dz']
-            depth = MDataset[modelname].attrs['depth']
-            depthArr = MDataset[modelname].attrs['depthArr']
+            dz = MDataset[groupname].attrs['dz']
+            depth = MDataset[groupname].attrs['depth']
+            depthArr = MDataset[groupname].attrs['depthArr']
             if maxdepth > depth[-1]:
                 raise ValueError('maximum depth is too large!')
             depth = depth [ np.where(depth<maxdepth)[0] ]
@@ -425,16 +458,16 @@ class ses3d_model(object):
         ##############################
         tz = 0
         bz = 0
-        vsindex =  MDataset[modelname].attrs['vs']
-        vpindex =  MDataset[modelname].attrs['vp']
-        rhoindex =  MDataset[modelname].attrs['rho']
-        if MDataset[modelname].attrs['isblock']:
-            group = MDataset[modelname]
+        vsindex =  MDataset[groupname].attrs['vs']
+        vpindex =  MDataset[groupname].attrs['vp']
+        rhoindex =  MDataset[groupname].attrs['rho']
+        if MDataset[groupname].attrs['isblock']:
+            group = MDataset[groupname]
         else:
             try:
-                group = MDataset[modelname+'_block']
+                group = MDataset[groupname+'_block']
             except:
-                group = MDataset[modelname]
+                group = MDataset[groupname]
                 warnings.warn('Input model is NOT block model! ', UserWarning, stacklevel=1)
         for k in xrange(self.nsubvol):
             self.m[k].dvsv = np.zeros((nx, ny, nzArr[k]))
@@ -459,6 +492,8 @@ class ses3d_model(object):
         return
             
     def vsLimit(self, vsmin):
+        """ Reassign the model value where vs < vsmin
+        """
         vpmin=0.9409+2.0947*vsmin-0.8206*vsmin**2+0.2683*vsmin**3-0.0251*vsmin**4
         rhomin=1.6612*vpmin-0.4721*vpmin**2+0.0671*vpmin**3-0.0043*vpmin**4+0.000106*vpmin**5
         for k in xrange(self.nsubvol):
@@ -470,10 +505,9 @@ class ses3d_model(object):
             self.m[k].drho = indexS * rhomin + indexL * self.m[k].drho
         return
     
-    #########################################################################
-    #- Compute the L2 norm.
-    #########################################################################
     def norm(self, modelname):
+        """Compute the L2 norm
+        """
         N=0.0
         #- Loop over subvolumes. ----------------------------------------------
         for n in np.arange(self.nsubvol):
@@ -504,16 +538,16 @@ class ses3d_model(object):
             N+=np.sum(dV*(v)**2)
         #- Finish. ------------------------------------------------------------
         return np.sqrt(N)
-    
-    #########################################################################
-    #- Apply horizontal smoothing.
-    #########################################################################
-    def smooth_horizontal(self, sigma, modelname, filter_type='neighbour'):
+
+    def _smooth_horizontal_single(self, sigma, modelname, filter_type='neighbour'):
         """
-        smooth_horizontal(self,sigma,filter='gauss')
-        Experimental function for smoothing in horizontal directions.
-        filter_type: gauss (Gaussian smoothing), neighbour (average over neighbouring cells)
-        sigma: filter width (when filter_type='gauss') or iterations (when filter_type='neighbour')
+        Experimental function for smoothing in horizontal directions for given model type
+        ========================================================================================
+        Input parameters:
+        sigma       - filter width ('gauss') or iterations ('neighbour')
+        modelname   - modelname ('dvsv', 'dvsh', 'dvp', 'drho')
+        filter_type - gauss (Gaussian smoothing), neighbour (average over neighbouring cells)
+        ========================================================================================
         WARNING: Currently, the smoothing only works within each subvolume. The problem 
         of smoothing across subvolumes without having excessive algorithmic complexity 
         and with fast compute times, awaits resolution ... .
@@ -580,10 +614,18 @@ class ses3d_model(object):
                             v_filtered[i,j,:]=(v[i,j,:]+v[i+1,j,:]+v[i-1,j,:]+v[i,j+1,:]+v[i,j-1,:])/5.0
         return
         
-    #########################################################################
-    #- Apply horizontal smoothing with adaptive smoothing length.
-    #########################################################################
+    def smooth_horizontal(self, sigma, filter_type='neighbour'):
+        """Experimental function for smoothing in horizontal directions for all model types
+        """
+        self._smooth_horizontal_single(sigma=sigma, modelname='dvsv', filter_type=filter_type)
+        self._smooth_horizontal_single(sigma=sigma, modelname='dvsh', filter_type=filter_type)
+        self._smooth_horizontal_single(sigma=sigma, modelname='dvp', filter_type=filter_type)
+        self._smooth_horizontal_single(sigma=sigma, modelname='drho', filter_type=filter_type)
+        return
+    
     def smooth_horizontal_adaptive(self, modelname, sigma):
+        """Apply horizontal smoothing with adaptive smoothing length.
+        """
         #- Find maximum smoothing length. -------------------------------------
         sigma_max=[]
         for n in np.arange(self.nsubvol):
@@ -659,12 +701,8 @@ class ses3d_model(object):
         return
             # self.m[n].v=v_filtered
 
-    #########################################################################
-    #- convert to vtk format
-    #########################################################################
     def convert_to_vtk(self, directory, modelname, filename, verbose=False):
         """ convert ses3d model to vtk format for plotting with Paraview, VisIt, ... .
-        convert_to_vtk(self,directory,filename,verbose=False):
         """
         Rref=6471.
         #- preparatory steps
@@ -774,7 +812,6 @@ class ses3d_model(object):
     
     def convert_to_vtk_depth(self, depth, directory, filename, verbose=False):
         """ convert ses3d model to vtk format for plotting with Paraview, VisIt, ... .
-        convert_to_vtk(self,directory,filename,verbose=False):
         """
         Rref=6471.
         #- preparatory steps
@@ -882,19 +919,22 @@ class ses3d_model(object):
         fid.close()
         return
     
-    #########################################################################
-    #- plot horizontal slices
-    #########################################################################
-    def plot_slice(self, depth, modelname, min_val_plot=None, max_val_plot=None, colormap='tomo', resolution='i', save_under=None, \
-                verbose=False, mapfactor=2, geopolygons=[]):
+    def plot_slice(self, depth, modelname, min_val_plot=None, max_val_plot=None, colormap='tomo_80_perc_linear_lightness',
+                   resolution='i', save_under=None, verbose=False, mapfactor=2, geopolygons=None):
         """
         Plot horizontal slices through an ses3d model
-        plot_slice(self,depth,colormap='tomo',res='i',save_under=None,verbose=False)
-        depth=depth in km of the slice
-        colormap='tomo','mono'
-        resolution=resolution of the map, admissible values are: c, l, i, h f
-        save_under=save figure as *.png with the filename "save_under". Prevents plotting of the slice.
-        
+        ===================================================================================================
+        Input parameters:
+        depth        - depth to be plotted, if given value is N/A, closest value will be chosen
+        modelname    - modelname ('dvsv', 'dvsh', 'dvp', 'drho')
+        min_val_plot - vmin/vmax for the colorbar
+        max_val_plot -
+        colormap     - colormap to be used
+        resolution   - resolution for plotting
+        save_under   - save figure as *.png with the filename "save_under". Prevents plotting of the slice
+        mapfactor    - map factor for zoom for regional plotting with orthographic projection
+        geopolygons  - geological polygons to plot on the map
+        ===================================================================================================
         Note:
         The model is actually a block model, namely, the model values are NOT assigned to grid point.
         However, as an approximation, we can assume each grid has the value corresponds to the nearest block. 
@@ -916,6 +956,7 @@ class ses3d_model(object):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,0,0,1])
         
         elif self.global_regional=='regional_ortho':
+            m1 = Basemap(projection='ortho', lon_0=self.lon_min, lat_0=self.lat_min, resolution='l')
             m = Basemap(projection='ortho', lon_0=self.lon_min,lat_0=self.lat_min, resolution=resolution,\
                 llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
@@ -930,7 +971,7 @@ class ses3d_model(object):
         # m.drawlsmask(land_color='0.8', ocean_color='#99ffff')
         m.drawmapboundary(fill_color="white")
         
-        my_colormap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        cmap = colors.get_colormap(colormap)
         # if colormap=='tomo':
         #     my_colormap=colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0],\
         #         0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92], 0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], \
@@ -989,8 +1030,10 @@ class ses3d_model(object):
                 else:
                     max_val_plot=maxval
                     min_val_plot=minval
-        if len(geopolygons)!=0:
-            geopolygons.PlotPolygon(mybasemap=m)
+        try:
+            geopolygons.PlotPolygon(inbasemap=m)
+        except:
+            pass
         #- loop over subvolumes to plot ---------------------------------------
         for k in np.arange(len(N_list)):
             if modelname=='dvsv':
@@ -1002,7 +1045,7 @@ class ses3d_model(object):
             if modelname=='dvp':
                 v = self.m[N_list[k]].dvp
             im=m.pcolormesh(x_list[k], y_list[k], v[:,:,idz_list[k]],
-                    shading='gouraud', cmap=my_colormap, vmin=min_val_plot, vmax=max_val_plot)
+                    shading='gouraud', cmap=cmap, vmin=min_val_plot, vmax=max_val_plot)
         #- make a colorbar and title ------------------------------------------
         cb=m.colorbar(im,"right", size="3%", pad='2%', )
         cb.ax.tick_params(labelsize=15)
@@ -1020,12 +1063,20 @@ class ses3d_model(object):
             plt.close()
         return
     
-    #########################################################################
-    #- plot depth to a certain threshold value
-    #########################################################################
-    def plot_threshold(self, val, min_val_plot, max_val_plot, modelname, resolution='i', colormap='afmhot_r', verbose=False):
-        """ plot depth to a certain threshold value 'val' in an ses3d model
-        plot_threshold(val,min_val_plot,max_val_plot,colormap='tomo',verbose=False):
+    def plot_threshold(self, val, modelname, min_val_plot, max_val_plot, colormap='afmhot_r', resolution='i', verbose=False, geopolygons=None):
+        """
+        Plot depth to a certain threshold value 'val' in an ses3d model
+        ==================================================================================================
+        Input parameters:
+        val          - threshold value
+        modelname    - modelname ('dvsv', 'dvsh', 'dvp', 'drho')
+        min_val_plot - vmin/vmax for the colorbar
+        max_val_plot
+        colormap     - colormap to be used
+        resolution   - resolution for plotting
+        save_under   - save figure as *.png with the filename "save_under". Prevents plotting of the slice
+        geopolygons  - geological polygons to plot on the map
+        ==================================================================================================
         val=threshold value
         min_val_plot, max_val_plot=minimum and maximum values of the colour scale
         colormap='tomo','mono'
@@ -1049,6 +1100,10 @@ class ses3d_model(object):
         #         0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
         # elif colormap=='mono':
         #     my_colormap=colormaps.make_colormap({0.0:[1.0,1.0,1.0], 0.15:[1.0,1.0,1.0], 0.85:[0.0,0.0,0.0], 1.0:[0.0,0.0,0.0]})
+        try:
+            geopolygons.PlotPolygon(mybasemap=m)
+        except:
+            pass
         #- loop over subvolumes
         for k in np.arange(self.nsubvol):
             if modelname =='dvsv':
@@ -1065,7 +1120,6 @@ class ses3d_model(object):
             #- find depth
             r=self.m[k].r
             r=0.5*(r[0:len(r)-1]+r[1:len(r)])
-            
             for idx in np.arange(nx-1):
                 for idy in np.arange(ny-1):
                     n=v[idx, idy,:]>=val
@@ -1093,8 +1147,5 @@ class ses3d_model(object):
             im=m.pcolor(x, y, depth, cmap=colormap, vmin=min_val_plot, vmax=max_val_plot, shading='gouraud')
         m.colorbar(im,"right", size="3%", pad='2%')
         plt.title('depth to '+str(val)+' km/s [km]')
-        plt.show()   
-
- 
-    
-        
+        plt.show()
+        return
