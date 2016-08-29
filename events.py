@@ -123,7 +123,7 @@ class STF(obspy.core.trace.Trace):
         Ns=1<<(npts-1).bit_length()
         INput = np.zeros((Ns), dtype=complex)
         OUTput = np.zeros((Ns), dtype=complex)
-        if diff==True:
+        if diff:
             tempTr=self.copy()
             tempTr.differentiate()
             INput[:npts]=tempTr.data
@@ -148,13 +148,64 @@ class STF(obspy.core.trace.Trace):
             self.dofft()
             freq=self.freq
             hf=self.hf
-        plt.semilogx(freq, np.abs(hf), lw=3)
-        plt.xlabel('frequency [Hz]')
-        if self.diff == True:
+        # plt.semilogx(freq, np.abs(hf), lw=3)
+        plt.plot(freq[:self.freq.size/2], np.abs(hf)[:self.freq.size/2], lw=3)
+        plt.xlabel('frequency [Hz]', fontsize=20)
+        plt.xticks(np.arange(0.01, 0.11, 0.01))
+        if self.diff:
             plt.title('Time derivative source time function (frequency domain)')
         else:
             plt.title('source time function (frequency domain)')
+        plt.xlim([0.01, 0.4])
         plt.show()
+        return
+    
+    def plotperiod(self):
+        """Plot spectrum
+        """
+        try:
+            freq=self.freq
+            hf=self.hf
+        except:
+            self.dofft()
+            freq=self.freq
+            hf=self.hf
+        # plt.semilogx(freq, np.abs(hf), lw=3)
+        freq=freq[:self.freq.size/2]
+        period=1./freq
+        period=period[::-1]
+        hf=np.abs(hf)[:self.freq.size/2]
+        hf=hf[::-1]
+        plt.plot(period, hf, lw=3)
+        plt.xlabel('period(sec)', fontsize=20)
+        plt.xticks(np.arange(0.0, 50., 10.), fontsize=20)
+        plt.yticks(fontsize=20)
+        if self.diff:
+            # plt.title('Time derivative source time function (frequency domain)')
+            plt.title(r'$\.s(T)$', fontsize=30)
+        else:
+            plt.title('source time function (frequency domain)')
+        plt.xlim([0., 50.])
+        # ax.axhline(theta, color='green', lw=2, alpha=0.5)
+        # ax.axhline(, color='red', lw=2, alpha=0.5)
+        plt.fill_between(period, 0, hf.max(), where=(period > 10.)*(period<20.), facecolor='red', alpha=0.3)
+        # plt.show()
+        return
+    
+    def plottime(self, te=100.):
+        time=np.arange(self.data.size)*self.stats.delta
+        data=self.data
+        plt.plot(time, data, 'k', lw=3)
+        plt.xlabel('time(sec)', fontsize=20)
+
+        plt.xticks(fontsize=20)
+        plt.yticks(fontsize=20)
+        plt.title(r'$s(t)$', fontsize=30)
+        plt.xlim([0., te])
+        # ax.axhline(theta, color='green', lw=2, alpha=0.5)
+        # ax.axhline(, color='red', lw=2, alpha=0.5)
+        # plt.fill_between(period, 0, hf.max(), where=(period > 10.)*(period<20.), facecolor='red', alpha=0.3)
+        # plt.show()
         return
     
     def plotstf(self, fmax=None):
@@ -167,7 +218,7 @@ class STF(obspy.core.trace.Trace):
                 raise AttributeError('Maximum frequency not specified!')
         ax=plt.subplot(411)
         ax.plot(np.arange(self.stats.npts)*self.stats.delta, self.data, 'k-', lw=3)
-        plt.xlim(0,100./fmax)
+        # plt.xlim(0.02,100./fmax)
         plt.xlabel('time [s]')
         plt.title('source time function (time domain)')
         ax=plt.subplot(412)
@@ -176,7 +227,6 @@ class STF(obspy.core.trace.Trace):
         # plt.xlim(fmin/5.,fmax*5.)
         plt.xlabel('frequency [Hz]')
         plt.title('source time function (frequency domain)')
-        
         ax=plt.subplot(413)
         outSTF=self.copy()
         self.differentiate()
@@ -184,14 +234,12 @@ class STF(obspy.core.trace.Trace):
         plt.xlim(0,100./fmax)
         plt.xlabel('time [s]')
         plt.title('Derivative of source time function (time domain)')
-        
         ax=plt.subplot(414)
         self.dofft()
         self.plotfreq()
         # plt.xlim(fmin/5.,fmax*5.)
         plt.xlabel('frequency [Hz]')
         plt.title('Derivative of source time function (frequency domain)')
-        
         plt.show()
     
     

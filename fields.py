@@ -22,7 +22,9 @@ from functools import partial
 import multiprocessing
 from pylab import savefig
 from geopy.distance import great_circle
-
+import obspy
+import field2d_earth
+import matplotlib.gridspec as gridspec
 #- Pretty units for some components.
 UNIT_DICT = {
     "vp": r"$\frac{\mathrm{m}}{\mathrm{s}}$",
@@ -390,7 +392,7 @@ class ses3d_fields(object):
         return
 
     def plot_depth_slice(self, component, depth, valmin, valmax, iteration=0, stations=True,
-            res="l", proj='regional_ortho', zoomin=2, geopolygons=None):
+            res="l", proj='regional_ortho', zoomin=2, geopolygons=None, evlo=None, evla=None):
         """
         Plot depth slices of field component at given depth ranging between "valmin" and "valmax"
         ================================================================================================
@@ -448,12 +450,26 @@ class ses3d_fields(object):
                     llcrnrlon=lon_min, urcrnrlon=lon_max, lat_ts=20,resolution=res)
             m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
             m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+        elif proj=='lambert':
+            distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_min, lon_max) # distance is in m
+            distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_max+1.7, lon_min) # distance is in m
+            m = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+                lat_1=lat_min, lat_2=lat_max, lon_0=lon_centre, lat_0=lat_centre+1.2)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=2, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=2, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
         m.drawcoastlines()
         m.fillcontinents(lake_color='white',zorder=0.2)
         m.drawmapboundary(fill_color="white")
         m.drawcountries()
         try:
             geopolygons.PlotPolygon(inbasemap=m)
+        except:
+            pass
+        try:
+            evx, evy=m(evlo, evla)
+            m.plot(evx, evy, 'yo', markersize=2)
         except:
             pass
         # - Loop over processor boxes and check if depth falls within the volume. ------------------
@@ -504,7 +520,7 @@ class ses3d_fields(object):
         print "minimum value: "+str(vmin)+", maximum value: "+str(vmax)
         return
     
-    def plot_depth_padding_slice(self, component, depth, valmin, valmax, dt, evla, evlo, vpadding=3.0, iteration=0, stations=True,
+    def plot_depth_padding_slice(self, component, depth, valmin, valmax, dt, evla, evlo, vpadding=2.5, iteration=0, stations=True,
             res="l", proj='regional_ortho', zoomin=2, geopolygons=None):
         """
         Plot depth slices of field component at given depth ranging between "valmin" and "valmax"
@@ -541,7 +557,7 @@ class ses3d_fields(object):
         lon_centre = (lon_max+lon_min)/2.0
         lat_centre,lon_centre = rotations.rotate_lat_lon(lat_centre, lon_centre, self.n, -self.rotangle)
         # lat_centre,lon_centre = rotate_coordinates(self.n,-self.rotangle,90.0-lat_centre,lon_centre)
-        lat_centre = 90.0-lat_centre
+        # lat_centre = 90.0-lat_centre
         d_lon = np.round((lon_max-lon_min)/10.0)
         d_lat = np.round((lat_max-lat_min)/10.0)
         # - Set up the map. ------------------------------------------------------------------------
@@ -563,6 +579,15 @@ class ses3d_fields(object):
                     llcrnrlon=lon_min, urcrnrlon=lon_max, lat_ts=20,resolution=res)
             m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
             m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+        elif proj=='lambert':
+            distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_min, lon_max) # distance is in m
+            distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_max+2., lon_min) # distance is in m
+            m = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+                lat_1=lat_min, lat_2=lat_max, lat_0=lat_centre+1.5, lon_0=lon_centre)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=2, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=2, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
         m.drawcoastlines()
         m.fillcontinents(lake_color='white',zorder=0.2)
         m.drawmapboundary(fill_color="white")
@@ -631,6 +656,163 @@ class ses3d_fields(object):
         return
     
     
+    def plot_depth_padding_all6_slice(self, component, depth, valmin, valmax, dt, evla, evlo, vpadding=2.5, iteration=0, stations=True,
+            res="l", proj='regional_ortho', zoomin=2, geopolygons=None):
+        """
+        Plot depth slices of field component at given depth ranging between "valmin" and "valmax"
+        ================================================================================================
+        Input parameters:
+        component       - component for plotting
+                            The currently available "components" are:
+                                Material parameters: A, B, C, mu, lambda, rhoinv, vp, vsh, vsv, rho
+                                Velocity field snapshots: vx, vy, vz
+                                Sensitivity kernels: Q_mu, Q_kappa, alpha_mu, alpha_kappa
+        depth           - depth for plot (km)
+        valmin, valmax  - minimum/maximum value for plotting
+        iteration       - only required for snapshot plot
+        stations        - plot stations or not
+        res             - resolution of the coastline (c, l, i, h, f)
+        proj            - projection type (global, regional_ortho, regional_merc)
+        zoomin          - zoom in factor for proj = regional_ortho
+        geopolygons     - geological polygons( basins etc. ) for plot
+        =================================================================================================
+        """
+        minlat=23.
+        maxlat=51.
+        minlon=86.
+        maxlon=132.
+        Tfield=field2d_earth.Field2d(minlon=minlon, maxlon=maxlon, dlon=0.2, minlat=minlat, maxlat=maxlat, dlat=0.2, period=10.)
+        Tfield.read_dbase(datadir='./output_ses3d_all6')
+        Afield=field2d_earth.Field2d(minlon=minlon, maxlon=maxlon, dlon=0.2, minlat=minlat, maxlat=maxlat, dlat=0.2, period=10., fieldtype='Amp')
+        Afield.cut_edge(1,1)
+        Afield.read_dbase(datadir='./output_ses3d_all6')
+        # field.get_distArr()
+        if not( (component in self.pure_components) or (component in self.derived_components) ):
+            raise TypeError('Incompatible component: '+component+' with field type: '+self.field_type)
+        # - Some initialisations. ------------------------------------------------------------------
+        fig = plt.figure()
+        ax = fig.add_subplot(231)
+        n_procs = self.setup["procs"]["px"] * self.setup["procs"]["py"] * self.setup["procs"]["pz"]
+        radius = 1000.0 * (6371.0 - depth)
+        vmax = float("-inf")
+        vmin = float("inf")
+        lat_min = 90.0 - self.setup["domain"]["theta_max"]*180.0/np.pi
+        lat_max = 90.0 - self.setup["domain"]["theta_min"]*180.0/np.pi
+        lon_min = self.setup["domain"]["phi_min"]*180.0/np.pi
+        lon_max = self.setup["domain"]["phi_max"]*180.0/np.pi
+        lat_centre = (lat_max+lat_min)/2.0
+        lon_centre = (lon_max+lon_min)/2.0
+        lat_centre,lon_centre = rotations.rotate_lat_lon(lat_centre, lon_centre, self.n, -self.rotangle)
+        d_lon = np.round((lon_max-lon_min)/10.0)
+        d_lat = np.round((lat_max-lat_min)/10.0)
+        # - Set up the map. ------------------------------------------------------------------------
+        if proj=='global':
+            m = Basemap(projection='ortho', lon_0=lon_centre, lat_0=lat_centre, resolution=res)
+            m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
+            m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])
+        elif proj=='regional_ortho':
+            m1 = Basemap(projection='ortho', lon_0=lon_min, lat_0=lat_min, resolution='l')
+            m = Basemap(projection='ortho',lon_0=lon_min,lat_0=lat_min, resolution=res,\
+                llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/zoomin, urcrnry=m1.urcrnry/3.5)
+            m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
+            m.drawmeridians(np.arange(-170.0,170.0,10.0))	
+        elif proj=='regional_merc':
+            m=Basemap(projection='merc', llcrnrlat=lat_min, urcrnrlat=lat_max,
+                    llcrnrlon=lon_min, urcrnrlon=lon_max, lat_ts=20,resolution=res)
+            m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
+            m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+        elif proj=='lambert':
+            distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_min, lon_max) # distance is in m
+            distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_max+2., lon_min) # distance is in m
+            m = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+                lat_1=lat_min, lat_2=lat_max, lat_0=lat_centre+1.5, lon_0=lon_centre)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=2, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=2, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
+        m.drawcoastlines()
+        m.fillcontinents(lake_color='white',zorder=0.2)
+        m.drawmapboundary(fill_color="white")
+        m.drawcountries()
+        try:
+            geopolygons.PlotPolygon(inbasemap=m)
+        except:
+            pass
+        mindist = dt * iteration * vpadding
+        evx, evy=m(evlo, evla)
+        m.plot(evx, evy, 'yo', markersize=2)
+        # - Loop over processor boxes and check if depth falls within the volume. ------------------
+        for p in range(n_procs):
+            latArr = 90. - self.theta[p,:]*180.0/np.pi
+            lonArr = self.phi[p,:]*180.0/np.pi
+            pmaxdist = max( great_circle(( latArr.min(), lonArr.min() ), (evla, evlo)).km, great_circle(( latArr.max(), lonArr.min() ), (evla, evlo)).km,
+                    great_circle(( latArr.min(), lonArr.max() ), (evla, evlo)).km, great_circle(( latArr.max(), lonArr.max() ), (evla, evlo)).km)
+            if (radius >= self.z[p,:].min()) and (radius <= self.z[p,:].max()):
+                # - Read this field and make lats & lons. ------------------------------------------
+                field = self.read_single_box(component, p, iteration)
+                lats = 90.0 - self.theta[p,:] * 180.0 / np.pi
+                lons = self.phi[p,:] * 180.0 / np.pi
+                lon, lat = np.meshgrid(lons, lats)
+                # - Find the depth index and plot for this one box. --------------------------------
+                idz=min(np.where(min(np.abs(self.z[p,:]-radius))==np.abs(self.z[p,:]-radius))[0])
+                r_effective = int(self.z[p,idz]/1000.0)
+                # - Find min and max values. -------------------------------------------------------
+                vmax = max(vmax, field[:,:,idz].max())
+                vmin = min(vmin, field[:,:,idz].min())
+                # - Make lats and lons. ------------------------------------------------------------
+                lats = 90.0 - self.theta[p,:] * 180.0 / np.pi
+                lons = self.phi[p,:] * 180.0 / np.pi
+                lon, lat = np.meshgrid(lons, lats)
+                # - Rotate if necessary. -----------------------------------------------------------
+                if self.rotangle != 0.0:
+                    lat_rot = np.zeros(np.shape(lon),dtype=float)
+                    lon_rot = np.zeros(np.shape(lat),dtype=float)
+                    for idlon in np.arange(len(lons)):
+                        for idlat in np.arange(len(lats)):
+                            # lat_rot[idlat,idlon],lon_rot[idlat,idlon] = rotate_coordinates(self.n,-self.rotangle,90.0-lat[idlat,idlon],lon[idlat,idlon])
+                            lat_rot[idlat,idlon],lon_rot[idlat,idlon]  = rotations.rotate_lat_lon(lat[idlat,idlon], lon[idlat,idlon],  self.n, -self.rotangle)
+                            lat_rot[idlat,idlon] = 90.0-lat_rot[idlat,idlon]
+                    lon = lon_rot
+                    lat = lat_rot
+                # - colourmap. ---------------------------------------------------------
+                cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+                x, y = m(lon, lat)
+                if pmaxdist > mindist:
+                    im = m.pcolormesh(x, y, field[:,:,idz], shading='gouraud', cmap=cmap, vmin=valmin,vmax=valmax)
+                else:
+                    im = m.pcolormesh(x, y, np.zeros(lon.shape), shading='gouraud', cmap=cmap, vmin=valmin,vmax=valmax)
+        # - Add colobar and title. ------------------------------------------------------------------
+        cb = m.colorbar(im, "right", size="3%", pad='2%')
+        if component in UNIT_DICT:
+            cb.set_label(UNIT_DICT[component], fontsize="x-large", rotation=0)
+        # plt.suptitle("Depth slice of %s at %i km" % (component, r_effective), fontsize=20)
+        # - Plot stations if available. ------------------------------------------------------------
+        if self.stations and stations:
+            x,y = m(self.stlons,self.stlats)
+            for n in range(self.n_stations):
+                plt.text(x[n],y[n],self.stnames[n][:4])
+                plt.plot(x[n],y[n],'ro')
+        ################################################################################
+        maxdist=iteration*0.05*3.
+        Tfield.reset_reason(dist=maxdist)
+        Afield.reset_reason(dist=maxdist)
+        Afield.np2ma()
+        Tfield.np2ma()
+        ax = fig.add_subplot(232)
+        Tfield.plot_field(contour=True, showfig=False, vmin=0, vmax=1500.)
+        ax = fig.add_subplot(233)
+        Tfield.plot_diffa(showfig=False)
+        ax = fig.add_subplot(234)
+        Tfield.plot_appV(showfig=False)
+        ax = fig.add_subplot(235)
+        Afield.plot_field(contour=False,showfig=False, vmin=0, vmax=1200.)
+        ax = fig.add_subplot(236)
+        Afield.plot_lplcC(showfig=False, infield=Tfield)
+        plt.suptitle('t = '+str(iteration*0.05)+' sec', fontsize=10, y=0.88)
+        plt.show()
+        print "minimum value: "+str(vmin)+", maximum value: "+str(vmax)
+        return
+    
     
     
     def plot_snapshots(self, component, depth, valmin, valmax, outdir, fprx='wavefield',iter0=100, iterf=17100, \
@@ -692,7 +874,16 @@ class ses3d_fields(object):
             m=Basemap(projection='merc', llcrnrlat=lat_min, urcrnrlat=lat_max,
                         llcrnrlon=lon_min, urcrnrlon=lon_max, lat_ts=20, resolution=res)
             m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
-            m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])	
+            m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+        elif proj=='lambert':
+            distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_min, lon_max) # distance is in m
+            distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_max+1.7, lon_min) # distance is in m
+            m = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+                lat_1=lat_min, lat_2=lat_max, lon_0=lon_centre+1.2, lat_0=lat_centre,)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=2, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=2, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
         m.drawcoastlines()
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         m.drawmapboundary(fill_color="white")
@@ -779,7 +970,7 @@ class ses3d_fields(object):
         return
     
     def plot_snapshots_mp(self, component, depth, valmin, valmax, outdir, fprx='wavefield',iter0=100, iterf=17100, diter=200,
-            stations=False, res="i", proj='regional_ortho', dpi=300, zoomin=2, geopolygons=None, evlo=None, evla=None ):
+            stations=False, res="i", proj='regional_ortho', dpi=300, zoomin=2, geopolygons=None, evlo=None, evla=None, vpadding=None, dt=None ):
         """Multiprocessing version of plot_snapshots
         ================================================================================================
         Input parameters:
@@ -800,7 +991,9 @@ class ses3d_fields(object):
         dpi             - dots per inch (figure resolution parameter)
         zoomin          - zoom in factor for proj = regional_ortho
         geopolygons     - geological polygons( basins etc. ) for plot
-        evlo, evla      - event location for plotting
+        evlo, evla      - event location for plotting 
+        vpadding        - velocity for padding, if assigned, wavefield that is with dist = vpadding*time
+                            will be padded to zero
         =================================================================================================
         """
         outdir=outdir+'_'+str(depth)+'km'
@@ -818,7 +1011,6 @@ class ses3d_fields(object):
         lat_centre = (lat_max+lat_min)/2.0
         lon_centre = (lon_max+lon_min)/2.0
         lat_centre, lon_centre = rotations.rotate_lat_lon(lat_centre,lon_centre, self.n, -self.rotangle)
-        lat_centre = 90.0-lat_centre
         d_lon = np.round((lon_max-lon_min)/10.0)
         d_lat = np.round((lat_max-lat_min)/10.0)  
         iterLst=np.arange((iterf-iter0)/diter)*diter+iter0;
@@ -827,8 +1019,67 @@ class ses3d_fields(object):
             valmin=valmin, valmax=valmax, stations=stations, fprx=fprx, proj=proj, \
             outdir=outdir, dpi=dpi, lat_min=lat_min, lat_max=lat_max, lon_min=lon_min, lon_max=lon_max,\
             lat_centre=lat_centre, lon_centre=lon_centre, d_lon=d_lon, d_lat=d_lat, res=res, \
-            zoomin=zoomin, geopolygons=geopolygons)
-        pool =multiprocessing.Pool()
+            zoomin=zoomin, geopolygons=geopolygons, vpadding=vpadding, dt=dt)
+        # PLOTSNAP(iterLst)
+        pool=multiprocessing.Pool()
+        pool.map(PLOTSNAP, iterLst) #make our results with a map call
+        pool.close() #we are not adding any more processes
+        pool.join() #tell it to wait until all threads are done before going on
+        print 'End of Making Snapshots for Animation  ( MP ) !'
+        return
+    
+    def plot_snapshots_all6_mp(self, component, depth, valmin, valmax, outdir, fprx='wavefield',iter0=100, iterf=17100, diter=200,
+            stations=False, res="i", proj='regional_ortho', dpi=300, zoomin=2, geopolygons=None, evlo=None, evla=None, vpadding=None, dt=None ):
+        """Multiprocessing version of plot_snapshots
+        ================================================================================================
+        Input parameters:
+        component       - component for plotting
+                            The currently available "components" are:
+                                Material parameters: A, B, C, mu, lambda, rhoinv, vp, vsh, vsv, rho
+                                Velocity field snapshots: vx, vy, vz
+                                Sensitivity kernels: Q_mu, Q_kappa, alpha_mu, alpha_kappa
+        depth           - depth for plot (km)
+        valmin, valmax  - minimum/maximum value for plotting
+        outdir          - output directory
+        fprx            - output file name prefix
+        iter0, iterf    - inital/final iterations for plotting
+        diter           - iteration interval
+        stations        - plot stations or not
+        res             - resolution of the coastline (c, l, i, h, f)
+        proj            - projection type (global, regional_ortho, regional_merc)
+        dpi             - dots per inch (figure resolution parameter)
+        zoomin          - zoom in factor for proj = regional_ortho
+        geopolygons     - geological polygons( basins etc. ) for plot
+        evlo, evla      - event location for plotting 
+        vpadding        - velocity for padding, if assigned, wavefield that is with dist = vpadding*time
+                            will be padded to zero
+        =================================================================================================
+        """
+        outdir=outdir+'_'+str(depth)+'km'
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        for iteration in np.arange((iterf-iter0)/diter)*diter+iter0:
+            vfname=self.directory+'/vx_0_'+str(int(iteration))
+            if not os.path.isfile(vfname):
+                raise NameError('Velocity Snapshot:'+vfname+' does not exist!')
+        # fig=plt.figure(num=None, figsize=(10, 10), dpi=dpi, facecolor='w', edgecolor='k')
+        lat_min = 90.0 - self.setup["domain"]["theta_max"]*180.0/np.pi
+        lat_max = 90.0 - self.setup["domain"]["theta_min"]*180.0/np.pi
+        lon_min = self.setup["domain"]["phi_min"]*180.0/np.pi
+        lon_max = self.setup["domain"]["phi_max"]*180.0/np.pi
+        lat_centre = (lat_max+lat_min)/2.0
+        lon_centre = (lon_max+lon_min)/2.0
+        lat_centre, lon_centre = rotations.rotate_lat_lon(lat_centre,lon_centre, self.n, -self.rotangle)
+        d_lon = np.round((lon_max-lon_min)/10.0)
+        d_lat = np.round((lat_max-lat_min)/10.0)  
+        iterLst=np.arange((iterf-iter0)/diter)*diter+iter0;
+        iterLst=iterLst.tolist()
+        PLOTSNAP = partial(Iter2snapshot_all6, sfield=self, evlo=evlo, evla=evla, component=component, depth=depth,\
+            valmin=valmin, valmax=valmax, stations=stations, fprx=fprx, proj=proj, \
+            outdir=outdir, dpi=dpi, lat_min=lat_min, lat_max=lat_max, lon_min=lon_min, lon_max=lon_max,\
+            lat_centre=lat_centre, lon_centre=lon_centre, d_lon=d_lon, d_lat=d_lat, res=res, \
+            zoomin=zoomin, geopolygons=geopolygons, vpadding=vpadding, dt=dt)
+        pool=multiprocessing.Pool()
         pool.map(PLOTSNAP, iterLst) #make our results with a map call
         pool.close() #we are not adding any more processes
         pool.join() #tell it to wait until all threads are done before going on
@@ -897,10 +1148,10 @@ class ses3d_fields(object):
         return
     
 def Iter2snapshot(iterN, sfield, evlo, evla, component, depth, valmin, valmax, stations, fprx, proj, outdir, dpi, \
-        lat_min, lat_max, lon_min, lon_max, lat_centre, lon_centre, d_lon, d_lat, res, zoomin, geopolygons):
+        lat_min, lat_max, lon_min, lon_max, lat_centre, lon_centre, d_lon, d_lat, res, zoomin, geopolygons, vpadding, dt):
     """Plot snapshot, used by plot_snapshots_mp
     """
-    print 'Plotting Snapshot for:',iterN,' steps!'
+    print 'Plotting Snapshot for:',iterN,' step!'
     n_procs = sfield.setup["procs"]["px"] * sfield.setup["procs"]["py"] * sfield.setup["procs"]["pz"]
     radius = 1000.0 * (6371.0 - depth);
     vmax = float("-inf");
@@ -914,17 +1165,20 @@ def Iter2snapshot(iterN, sfield, evlo, evla, component, depth, valmin, valmax, s
     elif proj=='regional_ortho':
         m1 = Basemap(projection='ortho', lon_0=lon_min, lat_0=lat_min, resolution='l')
         m = Basemap(projection='ortho',lon_0=lon_min,lat_0=lat_min, resolution=res,\
-            llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/zoomin, urcrnry=m1.urcrnry/zoomin)
-        # m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
-        # m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[0,1,1,0])
-        # m.drawparallels(np.arange(-80.0,80.0,10.0), dashes=[10000,1], labels=[1,0,0,0], linewidth=2.0,\
-        #                     color=(0.5019607843137255, 0.5019607843137255, 0.5019607843137255),fontsize=20)
-        # m.drawmeridians(np.arange(-170.0,170.0,10.0), dashes=[10000,1],linewidth=2.0,\
-        #                     color=(0.5019607843137255, 0.5019607843137255, 0.5019607843137255))
+            llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/zoomin, urcrnry=m1.urcrnry/3.5)
     elif proj=='regional_merc':
         m=Basemap(projection='merc',llcrnrlat=lat_min,urcrnrlat=lat_max,llcrnrlon=lon_min,urcrnrlon=lon_max,lat_ts=20,resolution=res)
         m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
-        m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])	
+        m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+    elif proj=='lambert':
+        distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                            lat_min, lon_max) # distance is in m
+        distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                            lat_max+2., lon_min) # distance is in m
+        m = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+            lat_1=lat_min, lat_2=lat_max, lon_0=lon_centre, lat_0=lat_centre+1.)
+        m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+        m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
     m.drawcoastlines()
     m.fillcontinents(lake_color='#99ffff',zorder=0.2)
     m.drawmapboundary(fill_color="white")
@@ -934,8 +1188,18 @@ def Iter2snapshot(iterN, sfield, evlo, evla, component, depth, valmin, valmax, s
         m.plot(evx, evy, 'yo', markersize=2)
     except:
         pass
+    try:
+        mindist = dt * iterN * vpadding
+        print 'will do padding for iteration: %d' %iterN
+    except:
+        mindist = -1.
+        print 'No padding for iteration: %d' %iterN
     # - Loop over processor boxes and check if depth falls within the volume. ------------------
     for p in range(n_procs):
+        latArr = 90. - sfield.theta[p,:]*180.0/np.pi
+        lonArr = sfield.phi[p,:]*180.0/np.pi
+        pmaxdist = max( great_circle(( latArr.min(), lonArr.min() ), (evla, evlo)).km, great_circle(( latArr.max(), lonArr.min() ), (evla, evlo)).km,
+                    great_circle(( latArr.min(), lonArr.max() ), (evla, evlo)).km, great_circle(( latArr.max(), lonArr.max() ), (evla, evlo)).km)
         if (radius >= sfield.z[p,:].min()) & (radius <= sfield.z[p,:].max()):
             # - Read this field and make lats & lons. ------------------------------------------
             field = sfield.read_single_box(component,p,iterN)
@@ -972,7 +1236,10 @@ def Iter2snapshot(iterN, sfield, evlo, evla, component, depth, valmin, valmax, s
             # my_colormap=make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0], 0.3:[1.0,0.3,0.0],\
             #     0.35:[1.0,0.7,0.0], 0.5:[0.92,0.92,0.92], 0.65:[0.0,0.6,0.7], 0.7:[0.0,0.3,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
             x, y = m(lon, lat)
-            im=m.pcolormesh(x, y, field[:,:,idz], shading='gouraud', cmap=cmap, vmin=valmin,vmax=valmax)
+            if pmaxdist > mindist:
+                im = m.pcolormesh(x, y, field[:,:,idz], shading='gouraud', cmap=cmap, vmin=valmin,vmax=valmax)
+            else:
+                im = m.pcolormesh(x, y, np.zeros(lon.shape), shading='gouraud', cmap=cmap, vmin=valmin,vmax=valmax)
     # - Add colobar and title. ------------------------------------------------------------------
     cb = m.colorbar(im, "right", size="3%", pad='2%')
     try:
@@ -987,6 +1254,149 @@ def Iter2snapshot(iterN, sfield, evlo, evla, component, depth, valmin, valmax, s
         for n in range(sfield.n_stations):
             plt.text(x[n],y[n],sfield.stnames[n][:4])
             plt.plot(x[n],y[n],'ro')
+    outfname=outdir+'/'+fprx+'_%06d.png' %(iterN)
+    savefig(outfname, format='png', dpi=dpi)
+    return
+
+def Iter2snapshot_all6(iterN, sfield, evlo, evla, component, depth, valmin, valmax, stations, fprx, proj, outdir, dpi, \
+        lat_min, lat_max, lon_min, lon_max, lat_centre, lon_centre, d_lon, d_lat, res, zoomin, geopolygons, vpadding, dt):
+    """Plot snapshot, used by plot_snapshots_all6_mp
+    """
+    minlat=23.
+    maxlat=51.
+    minlon=86.
+    maxlon=132.
+    Tfield=field2d_earth.Field2d(minlon=minlon, maxlon=maxlon, dlon=0.2, minlat=minlat, maxlat=maxlat, dlat=0.2, period=10.)
+    Tfield.read_dbase(datadir='./output_ses3d_all6')
+    Afield=field2d_earth.Field2d(minlon=minlon, maxlon=maxlon, dlon=0.2, minlat=minlat, maxlat=maxlat, dlat=0.2, period=10., fieldtype='Amp')
+    Afield.cut_edge(1,1)
+    Afield.read_dbase(datadir='./output_ses3d_all6')
+    print 'Plotting Snapshot for:',iterN,' step!'
+    n_procs = sfield.setup["procs"]["px"] * sfield.setup["procs"]["py"] * sfield.setup["procs"]["pz"]
+    radius = 1000.0 * (6371.0 - depth);
+    vmax = float("-inf");
+    vmin = float("inf");
+    fig = plt.figure(figsize=(15, 7))
+    gs = gridspec.GridSpec(2, 3)
+    ax = plt.subplot(gs[0, 0])
+    # - Set up the map. ------------------------------------------------------------------------
+    if proj=='global':
+        m=Basemap(projection='ortho', lon_0=lon_centre, lat_0=lat_centre, resolution=res)
+        m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
+        m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])	
+    elif proj=='regional_ortho':
+        m1 = Basemap(projection='ortho', lon_0=lon_min, lat_0=lat_min, resolution='l')
+        m = Basemap(projection='ortho',lon_0=lon_min,lat_0=lat_min, resolution=res,\
+            llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/zoomin, urcrnry=m1.urcrnry/3.5)
+    elif proj=='regional_merc':
+        m=Basemap(projection='merc',llcrnrlat=lat_min,urcrnrlat=lat_max,llcrnrlon=lon_min,urcrnrlon=lon_max,lat_ts=20,resolution=res)
+        m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
+        m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+    elif proj=='lambert':
+        distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                            lat_min, lon_max) # distance is in m
+        distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                            lat_max+2., lon_min) # distance is in m
+        m = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+            lat_1=lat_min, lat_2=lat_max, lon_0=lon_centre, lat_0=lat_centre+1.5)
+        m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=0.5, dashes=[2,2], labels=[0,0,0,0], fontsize=5)
+        m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=0.5, dashes=[2,2], labels=[0,0,0,0], fontsize=5)
+    m.drawcoastlines()
+    m.fillcontinents(lake_color='#99ffff',zorder=0.2)
+    m.drawmapboundary(fill_color="white")
+    m.drawcountries()
+    try:
+        evx, evy=m(evlo, evla)
+        m.plot(evx, evy, 'yo', markersize=2)
+    except:
+        pass
+    try:
+        mindist = dt * iterN * vpadding
+        print 'will do padding for iteration: %d' %iterN
+    except:
+        mindist = -1.
+        print 'No padding for iteration: %d' %iterN
+    # - Loop over processor boxes and check if depth falls within the volume. ------------------
+    for p in range(n_procs):
+        latArr = 90. - sfield.theta[p,:]*180.0/np.pi
+        lonArr = sfield.phi[p,:]*180.0/np.pi
+        pmaxdist = max( great_circle(( latArr.min(), lonArr.min() ), (evla, evlo)).km, great_circle(( latArr.max(), lonArr.min() ), (evla, evlo)).km,
+                    great_circle(( latArr.min(), lonArr.max() ), (evla, evlo)).km, great_circle(( latArr.max(), lonArr.max() ), (evla, evlo)).km)
+        if (radius >= sfield.z[p,:].min()) & (radius <= sfield.z[p,:].max()):
+            # - Read this field and make lats & lons. ------------------------------------------
+            field = sfield.read_single_box(component,p,iterN)
+            lats = 90.0 - sfield.theta[p,:] * 180.0 / np.pi
+            lons = sfield.phi[p,:] * 180.0 / np.pi
+            lon, lat = np.meshgrid(lons, lats)
+            # - Find the depth index and plot for this one box. --------------------------------
+            idz=min(np.where(min(np.abs(sfield.z[p,:]-radius))==np.abs(sfield.z[p,:]-radius))[0])
+            r_effective = int(sfield.z[p,idz]/1000.0)
+            # - Find min and max values. -------------------------------------------------------
+            vmax = max(vmax, field[:,:,idz].max())
+            vmin = min(vmin, field[:,:,idz].min())
+            # - Make lats and lons. ------------------------------------------------------------
+            lats = 90.0 - sfield.theta[p,:] * 180.0 / np.pi
+            lons = sfield.phi[p,:] * 180.0 / np.pi
+            lon, lat = np.meshgrid(lons, lats)
+            # - Rotate if necessary. -----------------------------------------------------------
+            if sfield.rotangle != 0.0:
+                lat_rot = np.zeros(np.shape(lon),dtype=float)
+                lon_rot = np.zeros(np.shape(lat),dtype=float)
+                for idlon in np.arange(len(lons)):
+                    for idlat in np.arange(len(lats)):
+                        # lat_rot[idlat,idlon],lon_rot[idlat,idlon] = rotate_coordinates(sfield.n,-sfield.rotangle,90.0-lat[idlat,idlon],lon[idlat,idlon])
+                        lat_rot[idlat,idlon],lon_rot[idlat,idlon]  = rotations.rotate_lat_lon(lat[idlat,idlon],lon[idlat,idlon], sfield.n,-sfield.rotangle)
+                        lat_rot[idlat,idlon] = 90.0-lat_rot[idlat,idlon]
+                lon = lon_rot
+                lat = lat_rot
+            cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+            x, y = m(lon, lat)
+            if pmaxdist > mindist:
+                im = m.pcolormesh(x, y, field[:,:,idz]*1e9, shading='gouraud', cmap=cmap, vmin=valmin*1e9,vmax=valmax*1e9)
+                # im = m.pcolormesh(x, y, field[:,:,idz]*1e9, shading='gouraud', cmap=cmap, vmin=valmin*1e9,vmax=valmax*1e9)
+            else:
+                im = m.pcolormesh(x, y, np.zeros(lon.shape), shading='gouraud', cmap=cmap, vmin=valmin,vmax=valmax)
+    # - Add colobar and title. ------------------------------------------------------------------
+    # cb = m.colorbar(im, "right", size="3%", pad='2%')
+    # cb.ax.tick_params(labelsize=4) 
+    try:
+        geopolygons.PlotPolygon(inbasemap=m)
+    except:
+        pass
+    # if component in UNIT_DICT:
+    #     # cb.set_label(UNIT_DICT[component], fontsize=3, rotation=0)
+    #     cb.set_label(r"$\frac{\mathrm{nm}}{\mathrm{s}}$", fontsize=3, rotation=0)
+    # - Plot stations if available. ------------------------------------------------------------
+    if (sfield.stations == True) & (stations==True):
+        x,y = m(sfield.stlons,sfield.stlats)
+        for n in range(sfield.n_stations):
+            plt.text(x[n],y[n],sfield.stnames[n][:4])
+            plt.plot(x[n],y[n],'ro')
+    ################################################################################
+    maxdist=iterN*0.05*3.
+    Tfield.reset_reason(dist=maxdist)
+    Afield.reset_reason(dist=maxdist)
+    Afield.np2ma()
+    Tfield.np2ma()
+    plt.title('Wavefield', fontsize=10)
+    ax2 = plt.subplot(gs[0, 1])
+    # ax2=plt.subplot2grid((2,3),(0,1), rowspan=1, colspan=1)
+    Tfield.plot_field(contour=True, showfig=False, vmin=0, vmax=1500., geopolygons=geopolygons)
+    plt.title('Travel time', fontsize=10)
+    ax3 = plt.subplot(gs[0, 2])
+    Afield.plot_field(contour=False,showfig=False, vmin=0, vmax=1200., geopolygons=geopolygons)
+    plt.title('Amplitude', fontsize=10)
+    ax4 = plt.subplot(gs[1, 0])
+    Tfield.plot_appV(showfig=False, geopolygons=geopolygons)
+    plt.title('Apparent phase velocity', fontsize=10)
+    ax5 = plt.subplot(gs[1, 1])
+    Tfield.plot_diffa(showfig=False)
+    plt.title('Great circle deflection', fontsize=10)
+    ax6= plt.subplot(gs[1, 2])
+    Afield.plot_lplcC(showfig=False, infield=Tfield, geopolygons=geopolygons)
+    plt.title('Amplitude correction term', fontsize=10)
+    plt.suptitle('t = '+str(iterN*0.05)+' sec', fontsize=10)
+    plt.tight_layout(h_pad=0.)
     outfname=outdir+'/'+fprx+'_%06d.png' %(iterN)
     savefig(outfname, format='png', dpi=dpi)
     return

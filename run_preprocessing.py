@@ -25,27 +25,28 @@ SLst.HomoStaLst(minlat = 22.5, Nlat = 116, minlon=85.5, Nlon = 188, dlat=0.25, d
 #################
 # events
 evlo=129.0
-# evlo=129.029
 evla=41.306
 Mw=4.1
 evdp=1.0
 
 dt=0.05
-num_timpstep=60000
-# fmin=1./100.;
-# fmax=1./10.
+num_timpstep=50000
+fmin=1./20.
+fmax=1./10.
 STF=events.STF()
-STF.RickerIntSignal(dt=dt, npts=num_timpstep, fc=0.1)
-# STF.plot()
-# STF.StepSignal(dt=dt, npts=num_timpstep)
+# STF.RickerIntSignal(dt=dt, npts=num_timpstep, fc=0.1)
+
+STF.StepSignal(dt=dt, npts=num_timpstep)
+STF.filter('bandpass',freqmin=fmin, freqmax=fmax )
 # STF.filter('highpass', freq=fmin, corners=4, zerophase=False)
 # STF.filter('lowpass', freq=fmax, corners=4, zerophase=False)
-# STF.plotfreq()
-
+STF.plotfreq()
+stime=STF.stats.starttime
+STF.plot(starttime=stime, endtime=stime+200., type='relative')
 ##################
 outdir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/INPUT'
 #SES3D configuration
-num_timpstep=60000
+num_timpstep=50000
 minlat=22.
 maxlat=52.
 minlon=85.
@@ -73,6 +74,6 @@ inGen.add_explosion(longitude=evlo, latitude=evla, depth=1., m0=1.45e15)
 # STF=events.STF()
 # STF.GaussianSignal(dt=dt, npts=num_timpstep, fc= 0.1)
 # inGen.get_stf(stf=STF, fmin=0.01, fmax=0.1, vmin=1.)
-inGen.get_stf(stf=STF, vmin=2.0)
+inGen.get_stf(stf=STF, vmin=2.0, fmax=0.1*2.0)
 inGen.add_stations(SLst)
-inGen.write(outdir=outdir)
+# inGen.write(outdir=outdir)

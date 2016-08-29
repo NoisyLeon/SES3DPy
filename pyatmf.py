@@ -10,7 +10,26 @@ from geopy.distance import great_circle
 from functools import partial
 import multiprocessing
 import numexpr as npr
+import matplotlib.pyplot as plt
+import matplotlib.pylab as plb
+from mpl_toolkits.basemap import Basemap, shiftgrid, cm
+from matplotlib.mlab import griddata
+import obspy.geodetics
+from lasif import colors
 
+
+
+def discrete_cmap(N, base_cmap=None):
+    """Create an N-bin discrete colormap from the specified input map"""
+
+    # Note that if base_cmap is a string or None, you can simply do
+    #    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+
+    base = plt.cm.get_cmap(base_cmap)
+    color_list = base(np.linspace(0, 1, N))
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
 
 class ATMFDataSet(h5py.File):
     
@@ -376,8 +395,101 @@ class ATMFDataSet(h5py.File):
         self[outname].attrs.create(name = 'maxlon', data=maxlon, dtype='f')
         self[outname].attrs.create(name = 'dlon', data=dlon, dtype='f')
         print '================ End horizontal extrapolation =============='
-        return 
-#     
+        return
+    
+    def getmoho(self, groupname, vmin=10, vmax=70, sigma=4,
+            minlat=-999, maxlat=999, minlon=-999, maxlon=999, mindepth=10.,projection='lambert' ):
+        """
+        Read hdf5 model
+        ================================================================================================
+        Input parameters:
+        infname         - input filename
+        groupname       - group name
+        minlon, maxlon  - defines study region, default is to read corresponding data from hdf5 file 
+        minlat, maxlat  -
+        maxdepth        - maximum depth to be truncated
+        ================================================================================================
+        """
+        # get latitude/longitude information
+        if minlat < self[groupname].attrs['minlat']:
+            minlat = self[groupname].attrs['minlat']
+        if maxlat > self[groupname].attrs['maxlat']:
+            maxlat = self[groupname].attrs['maxlat']
+        if minlon < self[groupname].attrs['minlon']:
+            minlon = self[groupname].attrs['minlon']
+        if maxlon > self[groupname].attrs['maxlon']:
+            maxlon = self[groupname].attrs['maxlon']
+        dlon = self[groupname].attrs['dlon']
+        dlat = self[groupname].attrs['dlat']
+        lonArr=minlon+np.arange((maxlon-minlon)/dlon+1)*dlon
+        latArr=minlat+np.arange((maxlat-minlat)/dlat+1)*dlat
+        lons, lats=np.meshgrid(lonArr, latArr)
+        mohoArr = np.ones(lons.shape)
+        for ilon in xrange(lonArr.size):
+            for ilat in xrange(latArr.size):
+                lon=lonArr[ilon]
+                lat=latArr[ilat]
+                name='%g_%g' %(lon, lat)
+                Vprofile = self[groupname][name].value
+                depthArr = Vprofile[:,0]
+                QArr = Vprofile[:,4]
+                zinterp = np.arange(200)*0.5 + mindepth
+                Qinterp = np.interp(zinterp, depthArr, QArr)
+                delQ = abs(Qinterp[1:] - Qinterp[:-1])
+                mohoArr[ilat, ilon] = zinterp[delQ.argmax()]
+        lon_min=minlon
+        lat_min=minlat
+        lon_max=maxlon
+        lat_max=maxlat
+        lat_centre = (lat_max+lat_min)/2.0
+        lon_centre = (lon_max+lon_min)/2.0
+        fig=plt.figure(num=None, figsize=(8, 12), dpi=80, facecolor='w', edgecolor='k')
+        if projection=='global':
+            m = Basemap(projection='ortho', lon_0=lon_centre, lat_0=lat_centre, resolution=res)
+            m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
+            m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])
+        elif projection=='regional_ortho':
+            m1 = Basemap(projection='ortho', lon_0=lon_min, lat_0=lat_min, resolution='l')
+            m = Basemap(projection='ortho',lon_0=lon_min,lat_0=lat_min, resolution=res,\
+                llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/mapfactor)
+            # labels = [left,right,top,bottom]
+            m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,0])
+            m.drawmeridians(np.arange(-170.0,170.0,10.0))	
+        elif projection=='regional_merc':
+            m=Basemap(projection='merc',llcrnrlat=lat_min,urcrnrlat=lat_max,llcrnrlon=lon_min,urcrnrlon=lon_max,lat_ts=20,resolution=res)
+            m.drawparallels(np.arange(np.round(lat_min),np.round(lat_max),d_lat),labels=[1,0,0,1])
+            m.drawmeridians(np.arange(np.round(lon_min),np.round(lon_max),d_lon),labels=[1,0,0,1])
+        elif projection=='lambert':
+             distEW, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                 lat_min, lon_max) # distance is in m
+             distNS, az, baz=obspy.geodetics.gps2dist_azimuth(lat_min, lon_min,
+                                lat_max+1.7, lon_min) # distance is in m
+             m = Basemap(width=distEW, height=distNS,
+             rsphere=(6378137.00,6356752.3142),\
+             resolution='l', projection='lcc',\
+             lat_1=lat_min, lat_2=lat_max, lat_0=lat_centre+1.2, lon_0=lon_centre)
+             m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=2, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=2, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
+        moho_filtered=mohoArr.copy()
+        for iteration in xrange(int(sigma)):
+            for i in np.arange(1,latArr.size-1):
+                for j in np.arange(1,lonArr.size-1):
+                    moho_filtered[i,j]=(mohoArr[i,j]+mohoArr[i+1,j]+mohoArr[i-1,j]+mohoArr[i,j+1]+mohoArr[i,j-1])/5.0
+        x,y = m(lons, lats)
+        m.drawcoastlines()
+        cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        cmap =discrete_cmap(int(vmax-vmin)/5, cmap)
+        im=m.pcolormesh(x, y, moho_filtered, shading='gouraud', cmap=cmap, vmin=10, vmax=70)
+        cb = m.colorbar(im,"right", size="3%", pad='2%', ticks=np.arange( (vmax-vmin)/5+1)*5+vmin)
+        cb.set_label('km', fontsize=20, rotation=90)
+        try:
+            geopolygons.PlotPolygon(inbasemap=m)
+        except:
+            pass
+        plt.show()
+        return moho_filtered
+        # print mohoArr
+    
 #     def horizontalExtendMP(self, modelname, minlat, maxlat, dlat, minlon, maxlon, dlon, outdir, 
 #                     sfx='_ses3d', Dref=500., deleteflag = False):
 #         avgArr = self[modelname].attrs['avg_model'][...]

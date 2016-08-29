@@ -5,7 +5,7 @@ outdir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/INPUT'
 #########################
 # Qmodel
 
-Qmodel=Qmodel.Qmodel( fmin=1.0/100., fmax=1/5.)
+Qmodel=Qmodel.Qmodel( fmin=1.0/100., fmax=1/10.)
 Qmodel.Qdiscrete()
 
 # D=np.array([1.684, 0.838, 1.357]);

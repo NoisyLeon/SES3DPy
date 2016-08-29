@@ -17,7 +17,7 @@ int calc_lplc(const char *file, double *slong, double *slati, double *grdt, doub
    float longmin=360, longmax=0, latimin=90, latimax=-90, longtmp, latitmp;
    double radius=6371.1391285, pi=4.0*atan(1.0), dgr=0.05, dattmp;
    double grdtx, grdty, dis, alpha;
-   double sdat[50000], weight;
+   double sdat[2000], weight;
    int i, j, ii, jj, ista, nrand, ntmpp, nstl;
 
    if(blc_size<1) blc_size=1;
@@ -70,7 +70,7 @@ int calc_lplc(const char *file, double *slong, double *slati, double *grdt, doub
    ff=fopen(buff,"w");
    fprintf(ff, "-R%d/%d/%d/%d\0", (int)floor(longmin), (int)ceil(longmax), (int)floor(latimin), (int)ceil(latimax));
    fclose(ff);
-   sprintf(buff,"/projects/life9360/code/ses3dPy/TEST_LPLC/Alpha_from_ampg_btag_tvtl_cap/C_plot_travel_positive %s region_%d %f %lf %lf", file, nrand, dgr, tension, blc_size);
+   sprintf(buff,"/projects/life9360/code/ses3dPy/TEST_LPLC/C_plot_travel_positive %s region_%d %f %lf %lf", file, nrand, dgr, tension, blc_size);
    system(buff);
 
    sprintf(buff,"%s.HD",file);
@@ -168,9 +168,9 @@ int calc_lplc(const char *file, double *slong, double *slati, double *grdt, doub
    }
    fclose(ff);
 
-   sprintf(buff,"/projects/life9360/code/ses3dPy/TEST_LPLC/Alpha_from_ampg_btag_tvtl_cap/C_plot_travel %s_grdx region_%d %f %lf %lf", file, nrand, dgr, tension, blc_size);
+   sprintf(buff,"/projects/life9360/code/ses3dPy/TEST_LPLC/C_plot_travel %s_grdx region_%d %f %lf %lf", file, nrand, dgr, tension, blc_size);
    system(buff);
-   sprintf(buff,"/projects/life9360/code/ses3dPy/TEST_LPLC/Alpha_from_ampg_btag_tvtl_cap/C_plot_travel %s_grdy region_%d %f %lf %lf", file, nrand, dgr, tension, blc_size);
+   sprintf(buff,"/projects/life9360/code/ses3dPy/TEST_LPLC/C_plot_travel %s_grdy region_%d %f %lf %lf", file, nrand, dgr, tension, blc_size);
    system(buff);
 
    for(i=0;i<npts_long;i++) for(j=0;j<npts_lati;j++){

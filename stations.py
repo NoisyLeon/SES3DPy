@@ -1,6 +1,6 @@
 
 import obspy
-
+import os
 class StaInfo(object):
     """
     An object contains a station information
@@ -148,6 +148,8 @@ class StaLst(object):
     def write(self, outdir, eventnb=1):
         """Write station list to output directory
         """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
         L=len(self.stations)
         outfname=outdir+'/recfile_%d' %eventnb
         with open(outfname,'wb') as f:

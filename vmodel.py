@@ -19,6 +19,7 @@ from lasif import colors
 import colormaps
 from mpl_toolkits.basemap import Basemap, shiftgrid
 import h5py
+import obspy.geodetics.base
 
 
 #########################################################################
@@ -55,7 +56,7 @@ class ses3d_model(object):
     ========================================================
     Parameters:
     nsubvol          - number of subvolumes
-    global_regional  - plot type
+    projection  - plot type
     m                - list to store sub models
     phi              - rotation angle
     n                - rotation axis
@@ -72,7 +73,7 @@ class ses3d_model(object):
         self.lon_max=0.0
         self.lat_centre=0.0
         self.lon_centre=0.0
-        self.global_regional="global"
+        self.projection="global"
         self.m=[]
         #- read rotation parameters
         self.phi=0.0
@@ -92,7 +93,7 @@ class ses3d_model(object):
         res.lon_centre=self.lon_centre
         res.phi=self.phi
         res.n=self.n
-        res.global_regional=self.global_regional
+        res.projection=self.projection
         res.d_lon=self.d_lon
         res.d_lat=self.d_lat
         for k in np.arange(self.nsubvol):
@@ -119,7 +120,7 @@ class ses3d_model(object):
         res.lon_centre=self.lon_centre
         res.phi=self.phi
         res.n=self.n
-        res.global_regional=self.global_regional
+        res.projection=self.projection
         res.d_lon=self.d_lon
         res.d_lat=self.d_lat
         for k in np.arange(self.nsubvol):
@@ -146,7 +147,7 @@ class ses3d_model(object):
         res.lon_centre=self.lon_centre
         res.phi=self.phi
         res.n=self.n
-        res.global_regional=self.global_regional
+        res.projection=self.projection
         res.d_lon=self.d_lon
         res.d_lat=self.d_lat
         for k in np.arange(self.nsubvol):
@@ -222,11 +223,11 @@ class ses3d_model(object):
             if np.min(self.m[k].lon_rot) < self.lon_min: self.lon_min = np.min(self.m[k].lon_rot)
             if np.max(self.m[k].lon_rot) > self.lon_max: self.lon_max = np.max(self.m[k].lon_rot)
         if ((self.lat_max-self.lat_min) > 90.0 or (self.lon_max-self.lon_min) > 90.0):
-            self.global_regional = "global"
+            self.projection = "global"
             self.lat_centre = (self.lat_max+self.lat_min)/2.0
             self.lon_centre = (self.lon_max+self.lon_min)/2.0
         else:
-            self.global_regional = "regional"
+            self.projection = "regional"
             self.d_lat=5.0
             self.d_lon=5.0
         return
@@ -942,20 +943,20 @@ class ses3d_model(object):
         radius=6371.0-depth
         # ax=plt.subplot(111)
         #- set up a map and colourmap -----------------------------------------
-        if self.global_regional=='regional':
+        if self.projection=='merc':
             m=Basemap(projection='merc', llcrnrlat=self.lat_min, urcrnrlat=self.lat_max, llcrnrlon=self.lon_min,
                       urcrnrlon=self.lon_max, lat_ts=20, resolution=resolution)
             m.drawparallels(np.arange(self.lat_min,self.lat_max,self.d_lon), labels=[1,0,0,1])
             m.drawmeridians(np.arange(self.lon_min,self.lon_max,self.d_lat), labels=[1,0,0,1])
         
-        elif self.global_regional=='global':
+        elif self.projection=='global':
             self.lat_centre = (self.lat_max+self.lat_min)/2.0
             self.lon_centre = (self.lon_max+self.lon_min)/2.0
             m=Basemap(projection='ortho',lon_0=self.lon_centre, lat_0=self.lat_centre, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,1])
             m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,0,0,1])
         
-        elif self.global_regional=='regional_ortho':
+        elif self.projection=='regional_ortho':
             m1 = Basemap(projection='ortho', lon_0=self.lon_min, lat_0=self.lat_min, resolution='l')
             m = Basemap(projection='ortho', lon_0=self.lon_min,lat_0=self.lat_min, resolution=resolution,\
                 llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
@@ -963,6 +964,21 @@ class ses3d_model(object):
             # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
             # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
+        elif self.projection=='lambert':
+            self.lat_centre = (self.lat_max+self.lat_min)/2.0
+            self.lon_centre = (self.lon_max+self.lon_min)/2.0
+            distEW, az, baz=obspy.geodetics.base.gps2dist_azimuth(self.lat_min, self.lon_min,
+                                self.lat_min, self.lon_max) # distance is in m
+            distNS, az, baz=obspy.geodetics.base.gps2dist_azimuth(self.lat_min, self.lon_min,
+                                self.lat_max+1.7, self.lon_min) # distance is in m
+            m = Basemap(width=distEW, height=distNS,
+            rsphere=(6378137.00,6356752.3142),\
+            resolution='l', projection='lcc',\
+            lat_1=self.lat_min, lat_2=self.lat_max, lat_0=self.lat_centre+1.2, lon_0=self.lon_centre)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=2, dashes=[2,2], labels=[1,0,0,0], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=2, dashes=[2,2], labels=[0,0,1,1], fontsize=15)
+            
+        
         
         m.drawcoastlines(linewidth=1.0)
         m.drawcountries()
@@ -970,7 +986,8 @@ class ses3d_model(object):
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         # m.drawlsmask(land_color='0.8', ocean_color='#99ffff')
         m.drawmapboundary(fill_color="white")
-        
+        # plt.show()
+        # return
         cmap = colors.get_colormap(colormap)
         # if colormap=='tomo':
         #     my_colormap=colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0],\
@@ -995,7 +1012,7 @@ class ses3d_model(object):
                 idz=min( np.where(min(np.abs(r-radius))==np.abs(r-radius))[0])
                 if idz==len(r): idz-=idz
                 idz_list.append(idz)
-                if verbose==True:
+                if verbose:
                     print 'true plotting depth: '+str(6371.0-r[idz])+' km'
                 x, y=m(self.m[k].lon_rot[0:nx-1,0:ny-1], self.m[k].lat_rot[0:nx-1,0:ny-1]) # approximately, note that the model is actualy a block model
                 x_list.append(x)
@@ -1047,14 +1064,14 @@ class ses3d_model(object):
             im=m.pcolormesh(x_list[k], y_list[k], v[:,:,idz_list[k]],
                     shading='gouraud', cmap=cmap, vmin=min_val_plot, vmax=max_val_plot)
         #- make a colorbar and title ------------------------------------------
-        cb=m.colorbar(im,"right", size="3%", pad='2%', )
+        cb=m.colorbar(im,"right", size="3%", pad='2%', ticks=np.arange( (max_val_plot-min_val_plot)/0.1+1)*0.1+min_val_plot )
         cb.ax.tick_params(labelsize=15)
         if modelname == 'drho':
             cb.set_label('g/cm^3', fontsize=20, rotation=90)
         else:
             cb.set_label('km/sec', fontsize=20, rotation=90)
         # im.ax.tick_params(labelsize=20)
-        plt.title(modelname+ ' at ' + str(depth)+' km', fontsize=30)
+        # plt.title(modelname+ ' at ' + str(depth)+' km', fontsize=30)
         #- save image if wanted -----------------------------------------------
         if save_under is None:
             plt.show()
@@ -1082,12 +1099,12 @@ class ses3d_model(object):
         colormap='tomo','mono'
         """
         #- set up a map and colourmap
-        if self.global_regional=='regional':
+        if self.projection=='regional':
             m=Basemap(projection='merc',llcrnrlat=self.lat_min,urcrnrlat=self.lat_max,\
                     llcrnrlon=self.lon_min,urcrnrlon=self.lon_max,lat_ts=20,resolution=resolution)
             m.drawparallels(np.arange(self.lat_min,self.lat_max,self.d_lon),labels=[1,0,0,1])
             m.drawmeridians(np.arange(self.lon_min,self.lon_max,self.d_lat),labels=[1,0,0,1])
-        elif self.global_regional=='global':
+        elif self.projection=='global':
             m=Basemap(projection='ortho',lon_0=self.lon_centre,lat_0=self.lat_centre,resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
             m.drawmeridians(np.arange(-170.0,170.0,10.0),labels=[1,0,0,1])

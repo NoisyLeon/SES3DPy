@@ -16,9 +16,13 @@ class GeoPolygon(object):
         basinArr=basinArr.T;
         # poly=Polygon(basinArr, edgecolor= (0.5019607843137255, 0.5019607843137255, 0.5019607843137255),\
         #             alpha=alpha, closed=True, fill=False, hatch=hatch, lw=2);
-        poly=Polygon(basinArr, edgecolor='k',\
-                    alpha=None, closed=True, fill=False, hatch=hatch, lw=2);
-        plt.gca().add_patch(poly);
+        # poly=Polygon(basinArr, edgecolor= 'r',\
+        #             alpha=None, closed=True, fill=False, hatch=hatch, lw=2)
+        poly=Polygon(basinArr, edgecolor= 'k',\
+                    alpha=alpha, closed=True, fill=False, hatch=hatch, lw=2)
+        # poly=Polygon(basinArr, edgecolor='k',\
+        #             alpha=None, closed=True, fill=False, hatch=hatch, lw=2);
+        plt.gca().add_patch(poly)
         return
 
 class GeoPolygonLst(object):

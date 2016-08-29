@@ -1,6 +1,9 @@
 import pyatmf
-
-MFile = pyatmf.ATMFDataSet('../EAmodel_MP.h5')
+minlat=22.
+maxlat=52.
+minlon=85.
+maxlon=133.
+MFile = pyatmf.ATMFDataSet('../EAmodel.h5')
 # MFile.readCVmodel(indir='/home/lili/EA_MODEL/ALL_MODEL', modelname='EA_model_layered',
 #                 grdlst='/home/lili/EA_MODEL/EA_grid_point.lst')
 
@@ -21,3 +24,5 @@ MFile = pyatmf.ATMFDataSet('../EAmodel_MP.h5')
 
 # MFile.horizontalExtend(modelname='EA_model_200', minlat=15., maxlat=55., dlat=0.5, minlon=75., maxlon=145., dlon=0.5)
 # MFile.horizontalExtend(modelname='EA_model_210', minlat=15., maxlat=55., dlat=0.5, minlon=75., maxlon=145., dlon=0.5)
+
+marr=MFile.getmoho('EA_model_210_ses3d', sigma=5, minlat=minlat, maxlat=maxlat, minlon=minlon, maxlon=maxlon)

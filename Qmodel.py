@@ -264,6 +264,7 @@ class Qmodel(object):
         #-----------------------------------------------------
         #- plot Q and phase velocity as function of frequency 
         #-----------------------------------------------------
+        plt.figure(figsize=(15, 10))
         for n in np.arange(len(self.QArr)):
             #- compute optimal Q model for misfit calculations
             A=1.0
@@ -285,15 +286,15 @@ class Qmodel(object):
             v_plot=np.sqrt(2*(A**2+B**2)/(A+np.sqrt(A**2+B**2)))
     
             # plt.subplot(121)
-            plt.subplot(111)
+            plt.subplot(1, self.QArr.size, n+1)
             plt.semilogx([self.fmin,self.fmin],[0.9*self.QArr[n],1.1*self.QArr[n]],'r')
             plt.semilogx([self.fmax,self.fmax],[0.9*self.QArr[n],1.1*self.QArr[n]],'r')
             plt.semilogx(f,Q_target[n,:],'r',linewidth=3)
             plt.semilogx(f_plot,Q_plot,'k',linewidth=3)
             plt.xlim([f_min_plot,f_max_plot])
-            plt.xlabel('frequency [Hz]')
-            plt.ylabel('Q')
-            plt.title('quality factor Q')
+            plt.xlabel('frequency (Hz)', fontsize=20)
+            plt.ylabel('Q', fontsize=20)
+            # plt.title('quality factor Q', fontsize=20)
         
             # plt.subplot(122)
             # plt.semilogx([self.fmin,self.fmin],[0.9,1.1],'r')
@@ -303,7 +304,7 @@ class Qmodel(object):
             # plt.xlabel('frequency [Hz]')
             # plt.ylabel('v')
             # plt.title('phase velocity')
-            plt.show()
+        plt.show()
         #------------------------------
         #- stress relaxation functions 
         #------------------------------
