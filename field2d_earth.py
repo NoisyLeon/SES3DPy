@@ -441,6 +441,33 @@ class Field2d(object):
             print 'max lplc:',self.lplc.max(), 'min lplc:',self.lplc.min()
         return
     
+    
+    def Laplacian_Green(self):
+        """Compute Laplacian of the field using Green's theorem( 2D Gauss's theorem )
+        """
+        try:
+            grad_y=self.grad[0]; grad_x=self.grad[1]
+        except:
+            self.gradient('default')
+            self.cut_edge(1,1)
+            grad_y=self.grad[0]; grad_x=self.grad[1]
+        grad_xp=grad_x[1:-1, 2:];  grad_xn=grad_x[1:-1, :-2]
+        grad_yp=grad_y[2:, 1:-1];  grad_yn=grad_y[:-2, 1:-1]
+        dlat_km=self.dlat_kmArr[1:-1, 1:-1]; dlon_km=self.dlon_kmArr[1:-1, 1:-1]
+        loopsum=(grad_xp-grad_xn)*dlat_km + (grad_yp-grad_yn)*dlon_km
+        area=dlat_km*dlon_km
+        lplc = loopsum/area
+        # # lplc=np.zeros((self.Nlat-2, self.Nlon-2))
+        # # for ilon in np.arange(int(self.Nlon-2))+1:
+        # #     for ilat in np.arange(int(self.Nlat-2))+1:
+        # #         dlat_km=self.dlat_kmArr[ilat, ilon]; dlon_km=self.dlon_kmArr[ilat, ilon]
+        # #         area=dlat_km*dlon_km
+        # #         loopsum=grad_x[ilat, ilon+1]*dlat_km-grad_x[ilat, ilon-1]*dlat_km \
+        # #                 + grad_y[ilat+1, ilon]*dlon_km - grad_y[ilat-1, ilon]*dlon_km
+        # #         lplc[ilat-1, ilon-1] = loopsum/area
+        self.lplc=lplc
+        return 
+    
     def interp_surface(self, workingdir, outfname, tension=0.0):
         """Interpolate input data to grid point with gmt surface command
         =======================================================================================
@@ -783,9 +810,9 @@ class Field2d(object):
             cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=np.arange(17)*100.)
         cb.ax.tick_params(labelsize=10)
         if self.fieldtype=='Tph' or self.fieldtype=='Tgr':
-            cb.set_label('sec', fontsize=12, rotation=0)
+            cb.set_label('Travel Time (sec)', fontsize=15, rotation=0)
         if self.fieldtype=='Amp':
-            cb.set_label('nm', fontsize=12, rotation=0)
+            cb.set_label('Amplitude (nm)', fontsize=15, rotation=0)
         if contour:
             # levels=np.linspace(ma.getdata(self.Zarr).min(), ma.getdata(self.Zarr).max(), 20)
             levels=np.linspace(ma.getdata(self.Zarr).min(), ma.getdata(self.Zarr).max(), 60)
@@ -805,7 +832,8 @@ class Field2d(object):
         x, y=m(self.lonArr, self.latArr)
         # cmap =discrete_cmap(int(vmax-vmin)/2+1, 'seismic')
         m.pcolormesh(x, y, self.lplc, cmap='seismic', shading='gouraud', vmin=vmin, vmax=vmax)
-        cb=m.colorbar()
+        cb = m.colorbar(im, "bottom", size="3%", pad='2%')
+        # cb.set_label('Amplitude (nm)', fontsize=15, rotation=0)
         cb.ax.tick_params(labelsize=15) 
         levels=np.linspace(self.lplc.min(), self.lplc.max(), 100)
         if contour:
@@ -814,7 +842,51 @@ class Field2d(object):
             plt.show()
         return
     
-    def plot_lplcC(self, infield=None, projection='lambert', contour=False, geopolygons=None, vmin=-0.012, vmax=0.012, period=10., showfig=True):
+    def plot_lplcC(self, infield=None, projection='lambert', contour=False, geopolygons=None, vmin=None, vmax=None, period=10., showfig=True):
+        """Plot data with contour
+        """
+        m=self._get_basemap(projection=projection, geopolygons=geopolygons)
+        if self.lonArr.shape[0]-2==self.lplc.shape[0] and self.lonArr.shape[1]-2==self.lplc.shape[1]:
+            self.cut_edge(1,1)
+        elif self.lonArr.shape[0]!=self.lplc.shape[0] or self.lonArr.shape[1]!=self.lplc.shape[1]:
+            raise ValueError('Incompatible shape for lplc and lon/lat array!')
+        w=2*np.pi/period
+        Zarr=self.Zarr.copy()
+        Zarr[self.Zarr==0]=-1
+        lplcC=self.lplc/Zarr/w**2
+        lplcC=lplcC*1000
+        # if infield!=None:
+        #     lplcC=lplcC*(infield.appV[1:-1,1:-1])**3/2.
+        #     vmin=-0.2
+        #     vmax=0.2
+            # appV=infield.appV[1:-1,1:-1]
+            # lplcC=1./np.sqrt(1./appV**2 - lplcC)
+            # vmin=2.9
+            # vmax=3.4
+        lplcC=ma.masked_array(lplcC, mask=np.zeros(self.Zarr.shape) )
+        lplcC.mask[self.reason_n!=0]=1
+        x, y=m(self.lonArr, self.latArr)
+        # cmap =discrete_cmap(int((vmax-vmin)*80)/2+1, 'seismic')
+        # cmap =discrete_cmap(int((vmax-vmin)*1000)/2+1, 'seismic')
+        # cmap=pycpt.load.gmtColormap('./GMT_panoply.cpt')
+        # cmap =discrete_cmap(int((vmax-vmin)*1000), 'seismic'2
+        # cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        im=m.pcolormesh(x, y, lplcC, cmap='seismic', shading='gouraud', vmin=vmin, vmax=vmax)
+        try:
+            vrange=vmin+np.arange((vmax-vmin)/2+1)*2
+            cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=vrange)
+        except:
+            cb = m.colorbar(im, "bottom", size="3%", pad='2%')
+        # cb = m.colorbar(im, "bottom", size="3%", pad='2%')
+        # (10^-3 sec^2/km^2)'
+        cb.set_label('Amplitude Laplacian term ('+r"${\mathrm{10}^\mathrm{-3}}{\mathrm{s}^2}/{\mathrm{km}^2}$"+')' , fontsize=15, rotation=0)
+        cb.ax.tick_params(labelsize=15)
+        # cb.set_label(r"$\frac{\mathrm{km}}{\mathrm{s}}$", fontsize=8, rotation=0)
+        if showfig:
+            plt.show()
+        return
+    
+    def plot_CorrV(self, infield, projection='lambert', contour=False, geopolygons=None, vmin=None, vmax=None, period=10., showfig=True):
         """Plot data with contour
         """
         m=self._get_basemap(projection=projection, geopolygons=geopolygons)
@@ -827,28 +899,27 @@ class Field2d(object):
         Zarr[self.Zarr==0]=-1
         lplcC=self.lplc/Zarr/w**2
         if infield!=None:
-            lplcC=lplcC*(infield.appV[1:-1,1:-1])**3/2.
-            vmin=-0.2
-            vmax=0.2
-            # appV=infield.appV[1:-1,1:-1]
-            # lplcC=1./np.sqrt(1./appV**2 - lplcC)
-            # vmin=2.9
-            # vmax=3.4
+            appV=infield.appV[1:-1,1:-1]
+            lplcC=1./np.sqrt(1./appV**2 - lplcC)
         lplcC=ma.masked_array(lplcC, mask=np.zeros(self.Zarr.shape) )
-        lplcC.mask[self.reason_n!=0]=1
+        lplcC.mask[infield.reason_n!=0]=1
         x, y=m(self.lonArr, self.latArr)
-        cmap =discrete_cmap(int((vmax-vmin)*80)/2+1, 'seismic')
-        # cmap =discrete_cmap(int((vmax-vmin)*1000)/2+1, 'seismic')
-        # cmap=pycpt.load.gmtColormap('./GMT_panoply.cpt')
-        # cmap =discrete_cmap(int((vmax-vmin)*1000), 'seismic'2
-        # cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
         im=m.pcolormesh(x, y, lplcC, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
-        cb = m.colorbar(im, "right", size="3%", pad='2%')
-        cb.ax.tick_params(labelsize=5)
-        cb.set_label(r"$\frac{\mathrm{km}}{\mathrm{s}}$", fontsize=8, rotation=0)
+        try:
+            vrange=vmin+np.arange((vmax-vmin)/0.1+1)*0.1
+            cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=vrange)
+        except:
+            cb = m.colorbar(im, "bottom", size="3%", pad='2%')
+        # cb = m.colorbar(im, "bottom", size="3%", pad='2%')
+        # (10^-3 sec^2/km^2)'
+        cb.set_label("Corrected Phase Velocity (km/sec)", fontsize=15, rotation=0)
+        cb.ax.tick_params(labelsize=15)
+        # cb.set_label(r"$\frac{\mathrm{km}}{\mathrm{s}}$", fontsize=8, rotation=0)
         if showfig:
             plt.show()
         return
+    
     
     def plot_diffa(self, projection='lambert', prop=True, geopolygons=None, cmap='seismic', vmin=-20, vmax=20, showfig=True):
         """Plot data with contour
@@ -896,19 +967,19 @@ class Field2d(object):
             plt.show()
         return
     
-    def plot_appV(self, projection='lambert', geopolygons=None, showfig=True):
-        """Plot data with contour
+    def plot_appV(self, projection='lambert', geopolygons=None, showfig=True, vmin=None, vmax=None):
         """
-        m=self._get_basemap_1(projection=projection, geopolygons=geopolygons)
+        """
+        m=self._get_basemap(projection=projection, geopolygons=geopolygons)
         x, y=m(self.lonArr, self.latArr)
         cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
-        im=m.pcolormesh(x, y, self.appV, cmap=cmap, shading='gouraud', vmin=2.9, vmax=3.4)
+        im=m.pcolormesh(x, y, self.appV, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         # ###
         # stlaLst=np.arange(5)*0.25+33.25
         # stlo=110.
         # for stla in stlaLst:
         #     xs, ys=m(stlo, stla)
-        #     plt.plot(xs,ys,'^r', markersize=15)
+        #     plt.plot(xs,ys,'^g', markersize=10)
         # stlaLst=np.arange(5)*0.25+29
         # stlo=115.
         # for stla in stlaLst:
@@ -917,9 +988,14 @@ class Field2d(object):
         ###
         ###
         # cb=m.colorbar()
-        cb = m.colorbar(im, "right", size="3%", pad='2%')
-        cb.ax.tick_params(labelsize=4)
-        cb.set_label(r"$\frac{\mathrm{km}}{\mathrm{s}}$", fontsize=8, rotation=0)
+        try:
+            vrange=vmin+np.arange((vmax-vmin)/0.1+1)*0.1
+            cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=vrange)
+        except:
+            cb = m.colorbar(im, "bottom", size="3%", pad='2%')
+        cb.ax.tick_params(labelsize=15)
+        # cb.set_label(r"$\frac{\mathrm{km}}{\mathrm{s}}$", fontsize=15, rotation=0)
+        cb.set_label("Apparent Phase Velocity (km/sec)", fontsize=15, rotation=0)
         if showfig:
             plt.show()
         return
@@ -939,28 +1015,9 @@ class Field2d(object):
     
     def reset_reason(self, dist):
         self.reason_n=np.zeros(self.Zarr.shape)
-        # self.reason_n[self.distArr>dist]=7
         self.reason_n[self.distArr<dist]=7
-        self.reason_n[self.reason_n==5]=0
-        # evlo=129.0
-        # evla=41.306
-        # evloArr=np.ones(self.lonArr.shape)*evlo
-        # evlaArr=np.ones(self.lonArr.shape)*evla
-        # g = Geod(ellps='WGS84')
-        # az, baz, distevent = g.inv(self.lonArr, self.latArr, evloArr, evlaArr)
-        # distevent=distevent/1000.
-        # self.dd=distevent
-        # self.reason_n[self.lonArr<90.]=6
-        # self.reason_n[(self.lonArr<100.)*(self.latArr<30.)]=6
-        # self.reason_n[(self.lonArr<100.)*(self.latArr<30.)]=6
-        # self.reason_n[(self.latArr<23.)]=6
-        # self.reason_n[(self.latArr<25.)*(self.lonArr>110.)]=6
-        # self.reason_n[(self.latArr<30.)*(self.lonArr>120.)]=6
-        # self.reason_n[(self.latArr<35.)*(self.lonArr>130.)]=6
-        # self.reason_n[(self.lonArr>132.)]=6
-        # self.reason_n[(self.lonArr>132.)]=6
-        # self.reason_n[(self.latArr>43.)*(self.lonArr<=120.)]=6
-        # self.reason_n[(self.latArr>48.)*(self.lonArr>120.)]=6
+        # self.reason_n[self.distArr<dist]=7
+        # self.reason_n[self.reason_n==5]=0
         return
     
     

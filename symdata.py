@@ -522,7 +522,10 @@ class ses3dtrace(obspy.core.trace.Trace):
                 plt.axis([Tmin2, Tmax2, vmin2, vmax2])
                 plt.xlabel('Period(s)')
                 plt.ylabel('Velocity(km/s)')
+                # plt.xlabel('Period(s)', fontsize=15)
+                # plt.ylabel('Velocity(km/s)', fontsize=15)
                 plt.title('PMF FTAN Diagram '+sacname,fontsize=15)
+                # plt.title('FTAN Diagram '+sacname,fontsize=25)
 
             if ( plotflag==3 ):
                 v1=dist/(fparam.tamp_1+np.arange(fparam.ncol_1)*dt)
