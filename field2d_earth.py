@@ -442,31 +442,6 @@ class Field2d(object):
         return
     
     
-    def Laplacian_Green(self):
-        """Compute Laplacian of the field using Green's theorem( 2D Gauss's theorem )
-        """
-        try:
-            grad_y=self.grad[0]; grad_x=self.grad[1]
-        except:
-            self.gradient('default')
-            self.cut_edge(1,1)
-            grad_y=self.grad[0]; grad_x=self.grad[1]
-        grad_xp=grad_x[1:-1, 2:];  grad_xn=grad_x[1:-1, :-2]
-        grad_yp=grad_y[2:, 1:-1];  grad_yn=grad_y[:-2, 1:-1]
-        dlat_km=self.dlat_kmArr[1:-1, 1:-1]; dlon_km=self.dlon_kmArr[1:-1, 1:-1]
-        loopsum=(grad_xp-grad_xn)*dlat_km + (grad_yp-grad_yn)*dlon_km
-        area=dlat_km*dlon_km
-        lplc = loopsum/area
-        # # lplc=np.zeros((self.Nlat-2, self.Nlon-2))
-        # # for ilon in np.arange(int(self.Nlon-2))+1:
-        # #     for ilat in np.arange(int(self.Nlat-2))+1:
-        # #         dlat_km=self.dlat_kmArr[ilat, ilon]; dlon_km=self.dlon_kmArr[ilat, ilon]
-        # #         area=dlat_km*dlon_km
-        # #         loopsum=grad_x[ilat, ilon+1]*dlat_km-grad_x[ilat, ilon-1]*dlat_km \
-        # #                 + grad_y[ilat+1, ilon]*dlon_km - grad_y[ilat-1, ilon]*dlon_km
-        # #         lplc[ilat-1, ilon-1] = loopsum/area
-        self.lplc=lplc
-        return 
     
     def interp_surface(self, workingdir, outfname, tension=0.0):
         """Interpolate input data to grid point with gmt surface command
@@ -805,6 +780,18 @@ class Field2d(object):
             cmap =discrete_cmap(int((vmax-vmin)/0.1)+1, cmap)
             im=m.pcolormesh(x, y, self.Zarr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
             cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=np.arange(20)*0.1+2.5)
+            ###
+            fname='sw_mags_10_4693783.xy'
+            lonArr=np.array([]); latArr=np.array([]); msArr=np.array([])
+            with open(fname, 'rb') as f:
+                for line in f.readlines():
+                    cline=line.split()
+                    lon=float(cline[4]); lat=float(cline[5]); ms=float(cline[7])
+                    if lon > 120 and lat >30 : continue
+                    lonArr=np.append(lonArr, lon); latArr=np.append(latArr, lat); msArr=np.append(msArr, ms)
+            xr, yr=m(lonArr, latArr)
+            m.scatter(xr, yr, marker='^', s=300, c=msArr, cmap=cmap, vmin=vmin, vmax=vmax)
+            ###
         else:
             im=m.pcolormesh(x, y, self.Zarr, cmap='gist_ncar_r', shading='gouraud', vmin=vmin, vmax=vmax)
             cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=np.arange(17)*100.)
