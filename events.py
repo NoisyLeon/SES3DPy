@@ -188,7 +188,7 @@ class STF(obspy.core.trace.Trace):
         plt.xlim([0., 50.])
         # ax.axhline(theta, color='green', lw=2, alpha=0.5)
         # ax.axhline(, color='red', lw=2, alpha=0.5)
-        plt.fill_between(period, 0, hf.max(), where=(period > 10.)*(period<20.), facecolor='red', alpha=0.3)
+        # plt.fill_between(period, 0, hf.max(), where=(period > 10.)*(period<20.), facecolor='red', alpha=0.3)
         # plt.show()
         return
     

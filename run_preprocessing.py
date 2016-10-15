@@ -40,8 +40,8 @@ STF.StepSignal(dt=dt, npts=num_timpstep)
 STF.filter('bandpass',freqmin=fmin, freqmax=fmax )
 # STF.filter('highpass', freq=fmin, corners=4, zerophase=False)
 # STF.filter('lowpass', freq=fmax, corners=4, zerophase=False)
-# STF.plotfreq()
-# stime=STF.stats.starttime
+STF.plotfreq()
+stime=STF.stats.starttime
 # STF.plot(starttime=stime, endtime=stime+200., type='relative')
 ##################
 outdir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/INPUT'

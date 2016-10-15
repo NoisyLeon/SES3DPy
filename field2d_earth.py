@@ -352,6 +352,10 @@ class Field2d(object):
             self.reason_n=self.reason_n[nlat:-nlat, nlon:-nlon]
         except:
             pass
+        try:
+            self.appV=self.appV[nlat:-nlat, nlon:-nlon]
+        except:
+            pass
         self._get_dlon_dlat_km()
         return
     
@@ -831,9 +835,11 @@ class Field2d(object):
             raise ValueError('Incompatible shape for lplc and lon/lat array!')
         x, y=m(self.lonArr, self.latArr)
         # cmap =discrete_cmap(int(vmax-vmin)/2+1, 'seismic')
-        m.pcolormesh(x, y, self.lplc, cmap='seismic', shading='gouraud', vmin=vmin, vmax=vmax)
+        self.lplc=self.lplc*1000
+        im=m.pcolormesh(x, y, self.lplc, cmap='seismic', shading='gouraud', vmin=vmin, vmax=vmax)
         cb = m.colorbar(im, "bottom", size="3%", pad='2%')
         # cb.set_label('Amplitude (nm)', fontsize=15, rotation=0)
+        cb.set_label('Travel Time Laplacian term ('+r"${\mathrm{10}^\mathrm{-3}}{\mathrm{s}}/{\mathrm{km}^2}$"+')', fontsize=15, rotation=0)
         cb.ax.tick_params(labelsize=15) 
         levels=np.linspace(self.lplc.min(), self.lplc.max(), 100)
         if contour:
@@ -1020,6 +1026,16 @@ class Field2d(object):
         # self.reason_n[self.reason_n==5]=0
         return
     
+    def reset_reason_2(self):
+        validArr=np.ones(self.reason_n.shape)
+        tArr=np.ones(self.reason_n.shape)
+        validArr[self.reason_n!=0]=0
+        tArr[1:-1, 1:-1]=validArr[2:,1:-1]+validArr[:-2,1:-1]+validArr[1:-1, 2:]+validArr[1:-1, :-2]
+        tArr=tArr/4
+        self.reason_n[tArr==0]=9
+        # self.reason_n[self.distArr<dist]=7
+        # self.reason_n[self.reason_n==5]=0
+        return
     
     
     def compare(self, inField):

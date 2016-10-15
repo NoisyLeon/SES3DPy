@@ -24,15 +24,22 @@ field.read(fname='./stf_10sec_all/Tph_10.0.txt')
 # field.add_noise(sigma=5.)
 workingdir='./field_working'
 field.interp_surface(workingdir=workingdir, outfname='Tph_10sec')
-field.check_curvature(workingdir=workingdir)
+field.check_curvature(workingdir=workingdir, threshold=0.01)
 field.gradient_qc(workingdir=workingdir, evlo=129.0, evla=41.306, nearneighbor=False)
 # field.reset_reason()
-
+field.Laplacian_Green()
+field.cut_edge(1,1)
+# field.reason_n[field.lplc>0.002]=9
+# field.reason_n[field.lplc<-0.002]=9
+field.reset_reason_2()
+# field.reason_n[field.appV<2.8]=9
 field.np2ma()
 field.plot_field(contour=True, geopolygons=basins)
+
 # field.plot_diffa()
 field.plot_appV(geopolygons=basins, vmin=2.9, vmax=3.4)
-# field.plot_lplc(vmin=0.005, vmax=-0.005)
+# field.plot_lplc(vmin=-0.01, vmax=0.01)
+field.plot_lplc(vmin=-10, vmax=10)
 # field.write_dbase(outdir='./fmst_dbase_0.2')
 # field.get_distArr(evlo=129.0,evla=41.306)
 # field.write_dbase(outdir='./output_ses3d_all6')

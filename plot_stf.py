@@ -8,8 +8,10 @@ num_timpstep=50000
 fmin=1./20.
 fmax=1./10.
 STF=events.STF()
-STF.StepSignal(dt=dt, npts=num_timpstep)
-STF.filter('bandpass',freqmin=fmin, freqmax=fmax )
+# STF.StepSignal(dt=dt, npts=num_timpstep)
+STF.RickerIntSignal(dt=dt, npts=num_timpstep, fc=0.1)
+# STF.filter('bandpass',freqmin=fmin, freqmax=fmax )
+STF.data=STF.data*20/83.44
 fig=plt.figure(figsize=(10, 20))
 stime=STF.stats.starttime
 ax1=plt.subplot(211)

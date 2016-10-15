@@ -22,7 +22,7 @@ from subprocess import call
 import warnings
 from mpl_toolkits.basemap import Basemap
 from lasif import colors
-
+from obspy.core.util import AttribDict
 
 
 class ftanParam(object):
@@ -1116,10 +1116,7 @@ class ses3dASDF(pyasdf.ASDFDataSet):
             self.add_waveforms( stream, tag='ses3d_raw')
             f.writelines('%s %g %g\n' %(wid, abs(stream[0].data).max(), Ntmax))
         f.close()
-            # maxArr=np.append(maxArr, abs(Zdata).max())
-        # np.
-        
-    
+
     def get_wavefield(self, time, minlon, dlon, Nlon, minlat, dlat,  Nlat, net='SES', projection='regional_ortho'):
         wavefArr = np.zeros((Nlon, Nlat))
         lonArr = minlon + np.arange(Nlon)*dlon
@@ -1797,6 +1794,40 @@ class ses3dASDF(pyasdf.ASDFDataSet):
         outsacfname=outdir+'/'+staid+'.SAC'
         sacTr.write(outsacfname)
         return
+    
+    def get_trace(self, staid=None, lon=None, lat=None, outdir='.', SLst=None, channel='BXZ'):
+        if staid==None and (lon==None or lat==None):
+            raise ValueError('Error Input')
+        evlo=self.events.events[0].origins[0].longitude
+        evla=self.events.events[0].origins[0].latitude
+        if staid!=None:
+            tr=self.waveforms[staid].ses3d_raw.select(channel=channel)[0]
+            lat, elev, lon=self.waveforms[staid].coordinates.values()
+        elif isinstance(SLst, stations.StaLst):
+            for sta in SLst.stations:
+                if sta.lon!=lon or sta.lat!=lat:
+                    continue
+                else:
+                    staid=sta.network+'.'+sta.stacode
+                    tr=self.waveforms[staid].ses3d_raw.select(channel=channel)[0]
+                    break
+        else:
+            for staid in self.waveforms.list():
+                # Get data from ASDF dataset
+                subdset = self.waveforms[staid]
+                stla, elev, stlo=subdset.coordinates.values()
+                if stlo!=lon or stla!=lat:
+                    continue
+                else:
+                    tr=subdset.ses3d_raw.select(channel=channel)[0]
+                    break
+        tr.stats.coordinates = AttribDict({
+            'latitude': lat,
+            'elevation': lon,
+            'longitude': 0.0})
+        return tr
+    
+    
     
     def get_dist_az_baz(self, staid=None, stlo=None, stla=None):
         if staid==None and (lon==None or lat==None):
