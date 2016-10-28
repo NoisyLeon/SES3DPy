@@ -1,6 +1,16 @@
-
+# -*- coding: utf-8 -*-
+"""
+A python module for ses3d preprocessing of seismic stations.
+    
+:Copyright:
+    Author: Lili Feng
+    Graduate Research Assistant
+    CIEI, Department of Physics, University of Colorado Boulder
+    email: lili.feng@colorado.edu
+"""
 import obspy
 import os
+
 class StaInfo(object):
     """
     An object contains a station information
@@ -122,7 +132,7 @@ class StaLst(object):
                     self.append(StaInfo (stacode=stacode, network=network, lon=lon, lat=lat ))
         return
 
-    def HomoStaLst(self, minlat, Nlat, minlon, Nlon, dlat, dlon, net='SES', prx=''):
+    def homo_stalst(self, minlat, Nlat, minlon, Nlon, dlat, dlon, net='SES', prx=''):
         """
         Generate equal grid interval station list
         ========================================================
@@ -142,7 +152,7 @@ class StaLst(object):
                 stacode=prx+str(ilon)+'S'+str(ilat)
                 self.stations.append(StaInfo (stacode=stacode, network=net, lon=lon, lat=lat))
                 if ilon == Nlon -1 and ilat == Nlat -1:
-                    print 'maxlat=', lat, 'maxlon=',lon
+                    print 'Station range: minlat=', minlat, ' maxlat=', lat, 'minlon=', minlon,'maxlon=',lon
         return
     
     def write(self, outdir, eventnb=1):

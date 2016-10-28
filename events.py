@@ -1,4 +1,13 @@
-
+# -*- coding: utf-8 -*-
+"""
+A python module for ses3d preprocessing of seismic event.
+    
+:Copyright:
+    Author: Lili Feng
+    Graduate Research Assistant
+    CIEI, Department of Physics, University of Colorado Boulder
+    email: lili.feng@colorado.edu
+"""
 import numpy as np
 import obspy
 import scipy.signal
@@ -348,7 +357,7 @@ class ses3dCatalog(obspy.core.event.Catalog):
                 m_tp = self.events[i].focal_mechanisms[0].moment_tensor.tensor.m_tp
                 m_tr = self.events[i].focal_mechanisms[0].moment_tensor.tensor.m_rt
                 m_pr = self.events[i].focal_mechanisms[0].moment_tensor.tensor.m_rp
-                
+
                 event_file = event_template.format(
                     nt=int(nt),
                     dt=float(dt),

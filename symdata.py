@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
-
+"""
+A python module for ses3d data post-processing
+    
+:Copyright:
+    Author: Lili Feng
+    Graduate Research Assistant
+    CIEI, Department of Physics, University of Colorado Boulder
+    email: lili.feng@colorado.edu
+"""
 import numpy as np
 import pyasdf 
 import stations
@@ -1013,7 +1021,7 @@ class ses3dASDF(pyasdf.ASDFDataSet):
             if stafile !=None:
                 SLst.read(stafile=stafile)
             else:
-                SLst.HomoStaLst(minlat = minlat, Nlat = Nlat, minlon=minlon, Nlon = Nlon, dlat=dlat, dlon=dlon, net='EA')
+                SLst.homo_stalst(minlat = minlat, Nlat = Nlat, minlon=minlon, Nlon = Nlon, dlat=dlat, dlon=dlon, net='EA')
             StaInv=SLst.GetInventory() 
             # self.add_stationxml(StaInv)
             print 'Start reading sac files!'

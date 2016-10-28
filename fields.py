@@ -25,6 +25,7 @@ from geopy.distance import great_circle
 import obspy
 import field2d_earth
 import matplotlib.gridspec as gridspec
+
 #- Pretty units for some components.
 UNIT_DICT = {
     "vp": r"$\frac{\mathrm{m}}{\mathrm{s}}$",
@@ -52,7 +53,7 @@ class ses3d_fields(object):
         rotationfile - rotation parameter file(default is None)
         recfile      - receiver file
         field_type   - field type("earth_model", "velocity_snapshot", and "kernel")
-        =================================================================================================
+        ================================================================================================
         """
         self.directory = directory
         self.field_type = field_type
@@ -90,7 +91,7 @@ class ses3d_fields(object):
             self.stnames = []
             self.stlats = []
             self.stlons = []
-            for n in range(self.n_stations):
+            for n in xrange(self.n_stations):
                 self.stnames.append(f.readline().strip())
                 dummy = f.readline().strip().split(' ')
                 self.stlats.append(90.0-float(dummy[0]))

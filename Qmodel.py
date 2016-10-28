@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+A python module for Q model computation.
+Modified from python script in SES3D package( by Andreas Fichtner and Lion Krischer)
+    
+:Copyright:
+    Author: Lili Feng
+    Graduate Research Assistant
+    CIEI, Department of Physics, University of Colorado Boulder
+    email: lili.feng@colorado.edu
+"""
 import numpy as np
 import numpy.random as rd
 import matplotlib.pyplot as plt
@@ -5,12 +16,12 @@ import os
 
 class Qmodel(object):
     """ An object for the computation of Standard Linear Solid(SLS) model.
-    ========================================================
+    =========================================================================
     Parameters:
-    QArr              - Q value array to fit
-    fmin, fmax    - minimum/maximum frequency
+    QArr        - Q value array to fit
+    fmin, fmax  - minimum/maximum frequency
     NumbRM      - number of relaxation mechanisms
-    ========================================================
+    =========================================================================
     """
     
     def __init__(self, QArr=np.array([50.0, 100.0, 500.0]), fmin=0.01, fmax=0.1, NumbRM=3):
@@ -39,42 +50,41 @@ class Qmodel(object):
         B=tau*(np.arctan(w*tau_max)-np.arctan(w*tau_min))
         self.Q_continuous=A/B
         self.v_continuous=np.sqrt(2*(A**2+B**2)/(A+np.sqrt(A**2+B**2)))
-        if plotflag==True:
+        if plotflag:
             plt.subplot(121)
             plt.semilogx(f,1./self.Q_continuous,'k')
             plt.xlabel('frequency [Hz]')
             plt.ylabel('1/Q')
             plt.title('absorption (1/Q)')
-            
             plt.subplot(122)
             plt.semilogx(f,self.v_continuous,'k')
             plt.xlabel('frequency [Hz]')
             plt.ylabel('v')
             plt.title('phase velocity')
-            
             plt.show()
         return
     
     def Qdiscrete(self, max_it=30000, T_0=0.2, d=0.9998, f_ref=1.0/20.0, alpha=0.0):
         """
         Computation and visualization of a discrete absorption-band model.
-        ====================================================================
-        For a given array of target Q values, the code determines the optimal relaxation
-        times and weights using simulated annealing algorithmn. This is done within in specified
-        frequency range.
+        ============================================================================================================
+        For a given array of target Q values, the code determines the optimal relaxation times and weights using
+        simulated annealing algorithmn. This is done within in specified frequency range.
+        ------------------------------------------------------------------------------------------------------------
         Input parameter:
-        max_it - number of iterations
-        T_0      - the initial random step length
-        d          - the temperature decrease (from one sample to the next by a factor of d)
-        f_ref     - Reference frequency in Hz
-        alpha   - exponent (alpha) for frequency-dependent Q, set to 0 for frequency-independent Q
+        max_it          - number of iterations
+        T_0             - the initial random step length
+        d               - the temperature decrease (from one sample to the next by a factor of d)
+        f_ref           - Reference frequency in Hz
+        alpha           - exponent (alpha) for frequency-dependent Q, set to 0 for frequency-independent Q
+        ------------------------------------------------------------------------------------------------------------
         Output:
-        self.D             - weight array
-        self.tau_s       - relaxation time array
-        self.D_pert    - D_pert
-        self.chi          - 
-        self.Q_target - target Q value array
-        ====================================================================
+        self.D          - weight array
+        self.tau_s      - relaxation time array
+        self.D_pert     - D_pert
+        self.chi        - 
+        self.Q_target   - target Q value array
+        ============================================================================================================
         """
         #------------------
         #- initialisations 
@@ -86,8 +96,7 @@ class Qmodel(object):
         tau=1.0/self.QArr
         #- compute target Q as a function of frequency
         Q_target=np.zeros([len(self.QArr), len(f)])
-        for n in np.arange(len(self.QArr)):
-            Q_target[n,:]=self.QArr[n]*(f/f_ref)**alpha
+        for n in xrange(len(self.QArr)): Q_target[n,:]=self.QArr[n]*(f/f_ref)**alpha
         #- compute initial relaxation times: logarithmically distributed
         tau_min=1.0/self.fmax
         tau_max=1.0/self.fmin
@@ -100,7 +109,7 @@ class Qmodel(object):
         #*********************************************************************
         #- compute initial Q -------------------------------------------------
         chi=0.0
-        for n in np.arange(len(self.QArr)):
+        for n in xrange(len(self.QArr)):
             A=1.0
             B=0.0
             for p in np.arange(self.NumbRM):
@@ -115,16 +124,15 @@ class Qmodel(object):
         D_test=np.array(np.arange(self.NumbRM),dtype=float)
         tau_s_test=np.array(np.arange(self.NumbRM),dtype=float)
         T=T_0
-        for it in np.arange(max_it):
+        for it in xrange(max_it):
             #- compute perturbed parameters ----------------------------------
             tau_s_test=tau_s*(1.0+(0.5-rd.rand(self.NumbRM))*T)
             D_test=D*(1.0+(0.5-rd.rand(1))*T) 
             #- compute test Q ------------------------------------------------
             chi_test=0.0
-            for n in np.arange(len(self.QArr)):
-                A=1.0
-                B=0.0
-                for p in np.arange(self.NumbRM):
+            for n in xrange(len(self.QArr)):
+                A=1.0; B=0.0
+                for p in xrange(self.NumbRM):
                     A+=tau[n]*(D_test[p]*w**2*tau_s_test[p]**2)/(1.0+w**2*tau_s_test[p]**2)
                     B+=tau[n]*(D_test[p]*w*tau_s_test[p])/(1.0+w**2*tau_s_test[p]**2)
                 Q_test=A/B
@@ -142,25 +150,25 @@ class Qmodel(object):
         #**********************************************************************
         #- compute initial Q --------------------------------------------------
         chi=0.0
-        for n in np.arange(len(self.QArr)):
+        for n in xrange(len(self.QArr)):
             A=1.0
             B=0.0
-            for p in np.arange(self.NumbRM):
+            for p in xrange(self.NumbRM):
                 A+=tau[n]*(D[p]*w**2*tau_s[p]**2)/(1.0+w**2*tau_s[p]**2)
                 B+=tau[n]*(D[p]*w*tau_s[p])/(1.0+w**2*tau_s[p]**2)
             Q=A/B
             chi+=sum((Q-Q_target[n,:])**2/self.QArr[n]**2)
         #- random search for optimal parameters -------------------------------
         T=T_0
-        for it in np.arange(max_it):
+        for it in xrange(max_it):
             #- compute perturbed parameters -----------------------------------
             D_test=D*(1.0+(0.5-rd.rand(self.NumbRM))*T)
             #- compute test Q -------------------------------------------------
             chi_test=0.0
-            for n in np.arange(len(self.QArr)):
+            for n in xrange(len(self.QArr)):
                 A=1.0
                 B=0.0
-                for p in np.arange(self.NumbRM):
+                for p in xrange(self.NumbRM):
                     A+=tau[n]*(D_test[p]*w**2*tau_s[p]**2)/(1.0+w**2*tau_s[p]**2)
                     B+=tau[n]*(D_test[p]*w*tau_s[p])/(1.0+w**2*tau_s[p]**2)
                 Q_test=A/B
@@ -178,14 +186,14 @@ class Qmodel(object):
         #************************************************
         #- compute perturbed target Q as a function of frequency
         Q_target_pert=np.zeros([len(self.QArr),len(f)])
-        for n in range(len(self.QArr)):
+        for n in xrange(len(self.QArr)):
             Q_target_pert[n,:]=self.QArr[n]*(f/f_ref)**(alpha+0.1)
         #- make initial weights
         D_pert=np.ones(self.NumbRM)
         D_pert[:]=D[:]
         #- compute initial Q ------------------------------------------------------------------------------
         chi=0.0
-        for n in np.arange(len(self.QArr)):
+        for n in xrange(len(self.QArr)):
             A=1.0
             B=0.0
             for p in np.arange(self.NumbRM):
@@ -195,15 +203,15 @@ class Qmodel(object):
             chi+=sum((Q-Q_target_pert[n,:])**2/self.QArr[n]**2)
         #- random search for optimal parameters -----------------------------------------------------------
         T=T_0
-        for it in np.arange(max_it):
+        for it in xrange(max_it):
             #- compute perturbed parameters ---------------------------------------------------------------
             D_test_pert=D_pert*(1.0+(0.5-rd.rand(self.NumbRM))*T)
             #- compute test Q -----------------------------------------------------------------------------
             chi_test=0.0
-            for n in np.arange(len(self.QArr)):
+            for n in xrange(len(self.QArr)):
                 A=1.0
                 B=0.0
-                for p in np.arange(self.NumbRM):
+                for p in xrange(self.NumbRM):
                     A+=tau[n]*(D_test_pert[p]*w**2*tau_s[p]**2)/(1.0+w**2*tau_s[p]**2)
                     B+=tau[n]*(D_test_pert[p]*w*tau_s[p])/(1.0+w**2*tau_s[p]**2)
                 Q_test=A/B
@@ -231,7 +239,7 @@ class Qmodel(object):
         print 'Weights: \t\t', D
         print 'Relaxation times: \t', tau_s
         print 'Partial derivatives: \t', (D_pert - D)/0.1
-        print '======================================================================'
+        print '============================================================================='
         # print 'Cumulative rms error:  ', np.sqrt(chi/(len(Q)*len(self.QArr)))
         self.D=D
         self.tau_s=tau_s
@@ -240,7 +248,7 @@ class Qmodel(object):
         self.Q_target=Q_target
         return
     
-    def PlotQdiscrete( self, D=None, tau_s=None, f_ref=1.0/20.0, alpha=0.0 ):
+    def plotQdiscrete( self, D=None, tau_s=None, f_ref=1.0/20.0, alpha=0.0 ):
         """Plot discrete absorption-band model.
         """
         if D==None or tau_s==None or D.size!=self.NumbRM:
@@ -265,11 +273,11 @@ class Qmodel(object):
         #- plot Q and phase velocity as function of frequency 
         #-----------------------------------------------------
         plt.figure(figsize=(15, 10))
-        for n in np.arange(len(self.QArr)):
+        for n in xrange(len(self.QArr)):
             #- compute optimal Q model for misfit calculations
             A=1.0
             B=0.0
-            for p in np.arange(self.NumbRM):
+            for p in xrange(self.NumbRM):
                 A+=tau[n]*(D[p]*w**2*tau_s[p]**2)/(1.0+w**2*tau_s[p]**2)
                 B+=tau[n]*(D[p]*w*tau_s[p])/(1.0+w**2*tau_s[p]**2)
             Q=A/B
@@ -279,7 +287,7 @@ class Qmodel(object):
             #- compute optimal Q model for plotting
             A=1.0
             B=0.0
-            for p in np.arange(self.NumbRM):
+            for p in xrange(self.NumbRM):
                 A+=tau[n]*(D[p]*w_plot**2*tau_s[p]**2)/(1.0+w_plot**2*tau_s[p]**2)
                 B+=tau[n]*(D[p]*w_plot*tau_s[p])/(1.0+w_plot**2*tau_s[p]**2)
             Q_plot=A/B
@@ -310,9 +318,9 @@ class Qmodel(object):
         #------------------------------
         dt=min(tau_s)/10.0
         t=np.arange(0.0,max(tau_s),dt)
-        for i in range(len(self.QArr)):
+        for i in xrange(len(self.QArr)):
             c=np.ones(len(t))
-            for n in range(self.NumbRM):
+            for n in xrange(self.NumbRM):
                 c+=tau[i]*D[n]*np.exp(-t/tau_s[n])
             plt.plot(t,c)
             plt.text(5.0*dt,np.max(c),r'$Q_0=$'+str(self.QArr[i]))
@@ -326,8 +334,7 @@ class Qmodel(object):
     def write(self, outdir):
         """Write relaxation time and weight to output directory
         """
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir)
+        if not os.path.isdir(outdir): os.makedirs(outdir)
         relax_file = (
         "RELAXATION TIMES [s] =====================\n"
         "{relax_times}\n"

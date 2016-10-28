@@ -1,3 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+A python module to generate input files for ses3d
+    
+:Copyright:
+    Author: Lili Feng
+    Graduate Research Assistant
+    CIEI, Department of Physics, University of Colorado Boulder
+    email: lili.feng@colorado.edu
+"""
 import stations
 import events
 from obspy.core.util.attribdict import AttribDict
@@ -86,12 +96,9 @@ class InputFileGenerator(object):
         =================================================================================================
         """
         print 'ATTENTION: Have You Updated the SOURCE/ses3d_conf.h and recompile the code???!!!'
-        if simulation_type==0:
-            self.config.simulation_type = "normal simulation"
-        elif simulation_type==1:
-            self.config.simulation_type = "adjoint forward"
-        elif simulation_type==2:
-            self.config.simulation_type = "adjoint reverse"
+        if simulation_type==0: self.config.simulation_type = "normal simulation"
+        elif simulation_type==1: self.config.simulation_type = "adjoint forward"
+        elif simulation_type==2: self.config.simulation_type = "adjoint reverse"
         # SES3D specific configuration  
         self.config.output_folder = output_folder
         self.config.lagrange_polynomial_degree = lpd
@@ -183,7 +190,7 @@ class InputFileGenerator(object):
                     '=========================================================================' 
         return
     
-    def WavelengthCondition(self, fmax=1.0/5.0, vmin=1.0, wpe=1.0): ### wpe = 1.5~2.0 is preferred
+    def WavelengthCondition(self, fmax=1.0/5.0, vmin=1.0, wpe=1.5): ### wpe = 1.5~2.0 is preferred
         """
         Check minimum wavelength condition
         ==========================================================
@@ -336,12 +343,5 @@ class InputFileGenerator(object):
             f.writelines(setup_file)
         return
 
-        
-        
-        
 
-        
-        
-        
-        
     

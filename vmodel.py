@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 A python module for SES3D block file manipulation.
-Modified from python script in SES3D package( Andreas Fichtner and Lion Krischer)
+Modified from python script in SES3D package( by Andreas Fichtner and Lion Krischer)
     
 :Copyright:
     Author: Lili Feng
@@ -53,14 +53,14 @@ class ses3d_submodel(object):
 class ses3d_model(object):
     """
     An object for reading, writing, plotting and manipulating ses3d model
-    ========================================================
+    ===========================================================================
     Parameters:
-    nsubvol          - number of subvolumes
-    projection  - plot type
-    m                - list to store sub models
-    phi              - rotation angle
-    n                - rotation axis
-    ========================================================
+    nsubvol         - number of subvolumes
+    projection      - plot type
+    m               - list to store sub models
+    phi             - rotation angle
+    n               - rotation axis
+    ===========================================================================
     """
     def __init__(self):
         """ initiate the ses3d_model class
@@ -377,14 +377,10 @@ class ses3d_model(object):
         """
         MDataset = h5py.File(infname)
         # get latitude/longitude information
-        if minlat < MDataset[groupname].attrs['minlat']:
-            minlat = MDataset[groupname].attrs['minlat']
-        if maxlat > MDataset[groupname].attrs['maxlat']:
-            maxlat = MDataset[groupname].attrs['maxlat']
-        if minlon < MDataset[groupname].attrs['minlon']:
-            minlon = MDataset[groupname].attrs['minlon']
-        if maxlon > MDataset[groupname].attrs['maxlon']:
-            maxlon = MDataset[groupname].attrs['maxlon']
+        if minlat < MDataset[groupname].attrs['minlat']: minlat = MDataset[groupname].attrs['minlat']
+        if maxlat > MDataset[groupname].attrs['maxlat']: maxlat = MDataset[groupname].attrs['maxlat']
+        if minlon < MDataset[groupname].attrs['minlon']: minlon = MDataset[groupname].attrs['minlon']
+        if maxlon > MDataset[groupname].attrs['maxlon']: maxlon = MDataset[groupname].attrs['maxlon']
         dlon = MDataset[groupname].attrs['dlon']
         dlat = MDataset[groupname].attrs['dlat']
         self.lat_min=minlat-dlat/2.
@@ -425,7 +421,7 @@ class ses3d_model(object):
         ymin = self.lon_min
         ymax = self.lon_max
         mindepth=0
-        nzArr = np.array([])
+        nzArr = np.array([], dtype=int)
         x0=xmin+dx/2.
         y0=ymin+dy/2.
         xG0=xmin
@@ -629,7 +625,7 @@ class ses3d_model(object):
         """
         #- Find maximum smoothing length. -------------------------------------
         sigma_max=[]
-        for n in np.arange(self.nsubvol):
+        for n in xrange(self.nsubvol):
             if modelname=='dvsv':
                 v = sigma.m[n].dvsv 
             if modelname=='dvsh':
@@ -640,7 +636,7 @@ class ses3d_model(object):
                 v = sigma.m[n].dvp 
             sigma_max.append(v.max())
         #- Loop over subvolumes.-----------------------------------------------
-        for n in np.arange(self.nsubvol):
+        for n in xrange(self.nsubvol):
             #- Size of the array.
             nx=len(self.m[n].lat)-1
             ny=len(self.m[n].lon)-1
@@ -702,6 +698,62 @@ class ses3d_model(object):
         return
             # self.m[n].v=v_filtered
 
+    def convert_to_vts(self, outdir, modelname, pfx='', verbose=False, unit=True):
+        """ Convert ses3d model to vts format for plotting with Paraview, VisIt
+        ========================================================================================
+        Input parameters:
+        outdir      - output directory
+        modelname   - modelname ('dvsv', 'dvsh', 'dvp', 'drho')
+        pfx         - prefix of output files
+        unit        - output unit sphere(radius=1) or not
+        ========================================================================================
+        """
+        if not os.path.isdir(outdir): os.makedirs(outdir)
+        from tvtk.api import tvtk, write_data
+        from mayavi import mlab
+        if unit: Rref=6471.
+        else: Rref=1.
+        for n in xrange(self.nsubvol):
+            theta=(90.0-self.m[n].lat[:-1])*np.pi/180.
+            phi=(self.m[n].lon[:-1])*np.pi/180.
+            radius=self.m[n].r[:-1]
+            theta, phi, radius = np.meshgrid(theta, phi, radius, indexing='ij')
+            x = radius * np.sin(theta) * np.cos(phi)/Rref
+            y = radius * np.sin(theta) * np.sin(phi)/Rref
+            z = radius * np.cos(theta)/Rref
+            dims = self.m[n].dvsv.shape
+            pts = np.empty(z.shape + (3,), dtype=float)
+            pts[..., 0] = x; pts[..., 1] = y; pts[..., 2] = z
+            # Reorder the points, scalars and vectors,
+            # so this is as per VTK's requirement of x first, y next and z last.
+            pts = pts.transpose(2, 1, 0, 3).copy()
+            pts.shape = pts.size / 3, 3
+            sgrid = tvtk.StructuredGrid(dimensions=dims, points=pts)
+            if modelname == 'dvsv':  v = self.m[n].dvsv 
+            if modelname == 'dvsh':  v = self.m[n].dvsh 
+            if modelname == 'drho':  v = self.m[n].drho 
+            if modelname == 'dvp':   v = self.m[n].dvp
+            sgrid.point_data.scalars = (v).ravel(order='F')
+            sgrid.point_data.scalars.name = modelname
+            outfname=outdir+'/'+pfx+modelname+'_'+str(n)+'.vts'
+            write_data(sgrid, outfname)
+        #     if showfig:
+        #         # Now visualize the data.
+        #         d = mlab.pipeline.add_dataset(sgrid)
+        #         gx = mlab.pipeline.grid_plane(d)
+        #         gy = mlab.pipeline.grid_plane(d)
+        #         gy.grid_plane.axis = 'y'
+        #         gz = mlab.pipeline.grid_plane(d)
+        #         gz.grid_plane.axis = 'z'
+        #         iso = mlab.pipeline.iso_surface(d)
+        #         iso.contour.maximum_contour = 75.0
+        #         vec = mlab.pipeline.vectors(d)
+        #         vec.glyph.mask_input_points = True
+        #         vec.glyph.glyph.scale_factor = 1.5
+        # mlab.show()
+        return
+    
+    
     def convert_to_vtk(self, directory, modelname, filename, verbose=False):
         """ convert ses3d model to vtk format for plotting with Paraview, VisIt, ... .
         """
@@ -711,7 +763,7 @@ class ses3d_model(object):
         ny=np.zeros(self.nsubvol, dtype=int)
         nz=np.zeros(self.nsubvol, dtype=int)
         N=0
-        for n in np.arange(self.nsubvol):
+        for n in xrange(self.nsubvol):
             nx[n]=len(self.m[n].lat)
             ny[n]=len(self.m[n].lon)
             nz[n]=len(self.m[n].r)
@@ -787,22 +839,17 @@ class ses3d_model(object):
         fid.write('SCALARS scalars float\n')
         fid.write('LOOKUP_TABLE mytable\n')
         for n in np.arange(self.nsubvol):
-            if verbose==True:
-                print 'writing data for subvolume '+str(n)
+            if verbose: print 'writing data for subvolume '+str(n)
             idx=np.arange(nx[n])
             idx[nx[n]-1]=nx[n]-2
             idy=np.arange(ny[n])
             idy[ny[n]-1]=ny[n]-2
             idz=np.arange(nz[n])
             idz[nz[n]-1]=nz[n]-2
-            if modelname =='dvsv':
-                v = self.m[n].dvsv 
-            if modelname =='dvsh':
-                v = self.m[n].dvsh 
-            if modelname =='drho':
-                v = self.m[n].drho 
-            if modelname =='dvp':
-                v = self.m[n].dvp
+            if modelname == 'dvsv':  v = self.m[n].dvsv 
+            if modelname == 'dvsh':  v = self.m[n].dvsh 
+            if modelname == 'drho':  v = self.m[n].drho 
+            if modelname == 'dvp':   v = self.m[n].dvp
             for i in idx:
                 for j in idy:
                     for k in idz:
