@@ -113,40 +113,24 @@ class GeoPolygonLst(object):
             geopolygon.PlotPolygon(inbasemap, alpha=alpha, hatch=hatch)
         return
     
-        
-        
-    # 
-    # def Trim(self, maxlon=360, minlon=0, maxlat=90, minlat=-90):
-    #     TrimedGeoPolygonLst=GeoPolygonLst()
-    #     for geopolygon in self.geopolygons:
-    #         if geopolygon.IsInRegion(maxlon=maxlon, minlon=minlon, maxlat=maxlat, minlat=minlat):
-    #             TrimedGeoPolygonLst.append(geopolygon)
-    #     return TrimedGeoPolygonLst
-    # 
-    # def GetINTGeoPolygonLst(self):
-    #     NewGeoPolygonLst=GeoPolygonLst();
-    #     for geopolygon in self.geopolygons:
-    #         if abs(geopolygon.lon-int(geopolygon.lon)) > 0.1 or abs(geopolygon.lat-int(geopolygon.lat))>0.1:
-    #             continue;
-    #         geopolygon.SetName()
-    #         NewGeoPolygonLst.append(geopolygon);
-    #     # print 'End of Converting SES3D seismograms to SAC files !'
-#     #     return NewGeoPolygonLst;     
-# minlat=25.;
-# maxlat=52.;
-# minlon=90.;
-# maxlon=143.;
-# from mpl_toolkits.basemap import Basemap, shiftgrid, cm
-# m1 = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
-# m = Basemap(projection='ortho',lon_0=minlon,lat_0=minlat, resolution='i',\
-#     llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/2.5, urcrnry=m1.urcrnry/2.5)
-# # labels = [left,right,top,bottom]
-# m.drawparallels(np.arange(-80.0,80.0,10.0),labels=[1,0,0,1])
-# m.drawmeridians(np.arange(-170.0,170.0,10.0))
-# m.drawcoastlines()
-# m.drawcountries(color='b')
-# mygeopolygons=GeoPolygonLst();
-# mygeopolygons.ReadGeoPolygonLst('basin1');
-# mygeopolygons.PlotPolygon(mybasemap=m);
-# 
-# plt.show()
+    def convert_to_vts(self, outdir='.', Radius=1., name='basin'):
+        from tvtk.api import tvtk, write_data
+        from sympy.ntheory import primefactors
+        lonArr=np.array([]); latArr=np.array([])
+        for geopolygon in  self.geopolygons:
+            lonArr=np.append(lonArr, geopolygon.lonArr)
+            latArr=np.append(latArr, geopolygon.latArr)
+        theta=(90.-latArr)/180.*np.pi; phi=lonArr/180.*np.pi
+        x = Radius * np.sin(theta) * np.cos(phi)
+        y = Radius * np.sin(theta) * np.sin(phi)
+        z = Radius * np.cos(theta)
+        pts = np.empty(z.shape + (3,), dtype=float)
+        pts[..., 0] = x; pts[..., 1] = y; pts[..., 2] = z
+        least_prime=primefactors(x.size)[0]
+        dims = (x.size/least_prime, least_prime, 1)
+        sgrid = tvtk.StructuredGrid(dimensions=dims, points=pts)
+        sgrid.point_data.scalars = (np.ones(x.size)).ravel(order='F')
+        sgrid.point_data.scalars.name = name
+        outfname=outdir+'/'+name+'.vts'
+        write_data(sgrid, outfname)
+        return

@@ -25,6 +25,7 @@ from geopy.distance import great_circle
 import obspy
 import field2d_earth
 import matplotlib.gridspec as gridspec
+import h5py
 
 #- Pretty units for some components.
 UNIT_DICT = {
@@ -106,8 +107,7 @@ class ses3d_fields(object):
         """
         setup = {}
         #- Open setup file and read header. -------------------------------------------------------
-        if not os.path.isfile(setupfile):
-            raise NameError('setup file does not exists!');
+        if not os.path.isfile(setupfile): raise NameError('setup file does not exists!');
         with open(setupfile,'r') as f:
             lines = f.readlines()[1:]
             lines = [_i.strip() for _i in lines if _i.strip()]
@@ -115,11 +115,11 @@ class ses3d_fields(object):
             domain = {}
             domain["theta_min"] = float(lines.pop(0).split(' ')[0]) * np.pi / 180.0
             domain["theta_max"] = float(lines.pop(0).split(' ')[0]) * np.pi / 180.0
-            domain["phi_min"] = float(lines.pop(0).split(' ')[0]) * np.pi / 180.0
-            domain["phi_max"] = float(lines.pop(0).split(' ')[0]) * np.pi / 180.0
-            domain["z_min"] = float(lines.pop(0).split(' ')[0])
-            domain["z_max"] = float(lines.pop(0).split(' ')[0])
-            setup["domain"] = domain
+            domain["phi_min"]   = float(lines.pop(0).split(' ')[0]) * np.pi / 180.0
+            domain["phi_max"]   = float(lines.pop(0).split(' ')[0]) * np.pi / 180.0
+            domain["z_min"]     = float(lines.pop(0).split(' ')[0])
+            domain["z_max"]     = float(lines.pop(0).split(' ')[0])
+            setup["domain"]     = domain
             #- Read computational setup. --------------------------------------------------------------
             lines.pop(0)
             lines.pop(0)
@@ -139,29 +139,27 @@ class ses3d_fields(object):
             elements["nz"] = 1 + elements["nz_global"] / procs["pz"]
             setup["elements"] = elements
         if verbose:
-            print '=========== Reading setup parameters ==========='
+            print '====================== Reading setup parameters ======================'
             print 'domain:'
-            for ikey in domain.keys():
-                print ikey,'=',str(domain[ikey])
+            for ikey in domain.keys(): print ikey,'=',str(domain[ikey])
             print 'elements:'
-            for ikey in elements.keys():
-                print ikey,'=',str(elements[ikey])
+            for ikey in elements.keys(): print ikey,'=',str(elements[ikey])
             print 'lpd:',str(setup['lpd'])
-            print '================================================'
+            print '======================================================================'
         return setup
                                  
     def make_coordinates(self):
         """
         Make the coordinate lines for the different processor boxes.
         """
-        n_procs = self.setup["procs"]["px"] * self.setup["procs"]["py"] * self.setup["procs"]["pz"]
+        n_procs     = self.setup["procs"]["px"] * self.setup["procs"]["py"] * self.setup["procs"]["pz"]
         #- Boundaries of the processor blocks. ----------------------------------------------------
         width_theta = (self.setup["domain"]["theta_max"] - self.setup["domain"]["theta_min"]) / self.setup["procs"]["px"]
-        width_phi = (self.setup["domain"]["phi_max"] - self.setup["domain"]["phi_min"]) / self.setup["procs"]["py"]
-        width_z = (self.setup["domain"]["z_max"] - self.setup["domain"]["z_min"]) / self.setup["procs"]["pz"]
-        boundaries_theta = np.arange(self.setup["domain"]["theta_min"],self.setup["domain"]["theta_max"]+width_theta,width_theta)
-        boundaries_phi = np.arange(self.setup["domain"]["phi_min"],self.setup["domain"]["phi_max"]+width_phi,width_phi)
-        boundaries_z = np.arange(self.setup["domain"]["z_min"],self.setup["domain"]["z_max"]+width_z,width_z)
+        width_phi   = (self.setup["domain"]["phi_max"] - self.setup["domain"]["phi_min"]) / self.setup["procs"]["py"]
+        width_z     = (self.setup["domain"]["z_max"] - self.setup["domain"]["z_min"]) / self.setup["procs"]["pz"]
+        boundaries_theta    = np.arange(self.setup["domain"]["theta_min"],self.setup["domain"]["theta_max"]+width_theta,width_theta)
+        boundaries_phi      = np.arange(self.setup["domain"]["phi_min"],self.setup["domain"]["phi_max"]+width_phi,width_phi)
+        boundaries_z        = np.arange(self.setup["domain"]["z_min"],self.setup["domain"]["z_max"]+width_z,width_z)
         #- Make knot lines. -----------------------------------------------------------------------
         knot_x = self.get_GLL() + 1.0
         for ix in np.arange(self.setup["elements"]["nx"] - 1):
@@ -176,15 +174,15 @@ class ses3d_fields(object):
         knot_y = knot_y * width_phi / np.max(knot_y)
         knot_z = knot_z * width_z / np.max(knot_z)
         #- Loop over all processors. --------------------------------------------------------------
-        self.theta = np.empty(shape=(n_procs,len(knot_x)))
-        self.phi = np.empty(shape=(n_procs,len(knot_y)))
-        self.z = np.empty(shape=(n_procs,len(knot_z)))
+        self.theta  = np.empty(shape=(n_procs,len(knot_x)))
+        self.phi    = np.empty(shape=(n_procs,len(knot_y)))
+        self.z      = np.empty(shape=(n_procs,len(knot_z)))
         p = 0
         for iz in np.arange(self.setup["procs"]["pz"]):
             for iy in np.arange(self.setup["procs"]["py"]):
                 for ix in np.arange(self.setup["procs"]["px"]):
                     self.theta[p,:] = boundaries_theta[ix] + knot_x
-                    self.phi[p,:] = boundaries_phi[iy] + knot_y
+                    self.phi[p,:]   = boundaries_phi[iy] + knot_y
                     self.z[p,: :-1] = boundaries_z[iz] + knot_z
                     p += 1;
         return
@@ -291,7 +289,69 @@ class ses3d_fields(object):
             vmax = max(vmax, field[:,:,:].max())
             vmin = min(vmin, field[:,:,:].min())
         print 'vmin=',vmin,'vmax=',vmax
-        return  
+        return
+    
+    
+    def convert_to_hdf5(self, outfname, component, depth,  iter0=0, iterf=30000, diter=100, verbose=True ):
+        """
+        Plot depth slices of field component at given depth ranging between "valmin" and "valmax"
+        ================================================================================================
+        Input parameters:
+        outfname        - output hdf5 file name
+        component       - component for plotting
+                            The currently available "components" are:
+                                Material parameters: A, B, C, mu, lambda, rhoinv, vp, vsh, vsv, rho
+                                Velocity field snapshots: vx, vy, vz
+                                Sensitivity kernels: Q_mu, Q_kappa, alpha_mu, alpha_kappa
+        depth           - depth for plot (km)
+        iter0, iterf    - start/end iteration index
+        diter           - iteration interval
+        =================================================================================================
+        """
+        if not( (component in self.pure_components) or (component in self.derived_components) ):
+            raise TypeError('Incompatible component: '+component+' with field type: '+self.field_type)
+        # - Some initialisations. ------------------------------------------------------------------
+        dset    = h5py.File(outfname)
+        n_procs = self.setup["procs"]["px"] * self.setup["procs"]["py"] * self.setup["procs"]["pz"]
+        radius = 1000.0 * (6371.0 - depth)
+        dset.attrs.create(name = 'theta_max', data=self.setup["domain"]["theta_max"], dtype='f')
+        dset.attrs.create(name = 'theta_min', data=self.setup["domain"]["theta_min"], dtype='f')
+        dset.attrs.create(name = 'phi_min', data=self.setup["domain"]["phi_min"], dtype='f')
+        dset.attrs.create(name = 'phi_max', data=self.setup["domain"]["phi_max"], dtype='f')
+        lat_min = 90.0 - self.setup["domain"]["theta_max"]*180.0/np.pi
+        lat_max = 90.0 - self.setup["domain"]["theta_min"]*180.0/np.pi
+        lon_min = self.setup["domain"]["phi_min"]*180.0/np.pi
+        lon_max = self.setup["domain"]["phi_max"]*180.0/np.pi
+        dset.attrs.create(name = 'lat_min', data=lat_min, dtype='f')
+        dset.attrs.create(name = 'lat_max', data=lat_max, dtype='f')
+        dset.attrs.create(name = 'lon_min', data=lon_min, dtype='f')
+        dset.attrs.create(name = 'lon_max', data=lon_max, dtype='f')
+        dset.attrs.create(name = 'depth', data=depth, dtype='f')
+        dset.attrs.create(name = 'n_procs', data=n_procs, dtype='f')
+        dset.attrs.create(name = 'rotation_axis', data=self.n, dtype='f')
+        dset.attrs.create(name = 'rotation_angle', data=self.rotangle, dtype='f')
+        group   = dset.create_group( name = component ) 
+        # - Loop over processor boxes and check if depth falls within the volume. ------------------
+        iterArr=np.arange(iter0 ,iterf+diter, diter)
+        for iteration in iterArr:
+            subgroup=group.create_group(name=str(iteration))
+            if verbose: print 'Converting snapshot to hdf5 for iteration =',iteration
+            try:
+                for p in range(n_procs):
+                    if (radius >= self.z[p,:].min()) & (radius <= self.z[p,:].max()):
+                        # - Read this field and make lats & lons. ------------------------------------------
+                        idz     = min(np.where(min(np.abs(self.z[p,:]-radius))==np.abs(self.z[p,:]-radius))[0])
+                        field   = (self.read_single_box(component, p, iteration))[:,:,idz]
+                        subdset = subgroup.create_dataset(name=str(p), shape=field.shape, data=field)
+                        subdset.attrs.create(name = 'theta', data=self.theta[p,:], dtype='f')
+                        subdset.attrs.create(name = 'phi', data=self.phi[p,:], dtype='f')
+            except IOError:
+                print 'iteration:',iteration,' NOT exists!'
+                del subgroup
+        # - Plot stations if available. ------------------------------------------------------------
+        return
+    
+    
     
     
     def plot_lat_slice(self, component, lat, valmin, valmax, iteration=0):
@@ -478,9 +538,9 @@ class ses3d_fields(object):
             if (radius >= self.z[p,:].min()) & (radius <= self.z[p,:].max()):
                 # - Read this field and make lats & lons. ------------------------------------------
                 field = self.read_single_box(component,p,iteration)
-                lats = 90.0 - self.theta[p,:] * 180.0 / np.pi
-                lons = self.phi[p,:] * 180.0 / np.pi
-                lon, lat = np.meshgrid(lons, lats)
+                # lats = 90.0 - self.theta[p,:] * 180.0 / np.pi
+                # lons = self.phi[p,:] * 180.0 / np.pi
+                # lon, lat = np.meshgrid(lons, lats)
                 # - Find the depth index and plot for this one box. --------------------------------
                 idz=min(np.where(min(np.abs(self.z[p,:]-radius))==np.abs(self.z[p,:]-radius))[0])
                 r_effective = int(self.z[p,idz]/1000.0)

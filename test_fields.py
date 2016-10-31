@@ -4,30 +4,30 @@ from matplotlib import animation
 import copy
 import numpy as np
 import GeoPolygon
+import h5fields
 #datadir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/MODELS/MODELS'
-datadir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/OUTPUT'
+datadir='snap_data'
 # rotationfile='/projects/life9360/software/ses3d_r07_b/TOOLS/rotation_parameters.txt'
-setupfile='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/INPUT/setup'
+setupfile='setup'
 
-basins=GeoPolygon.GeoPolygonLst()
-basins.ReadGeoPolygonLst('basin1')
-
-#setupfile='/home/lili/code/INPUT/setup'
-#datadir='/home/lili/code/snapshots'
-sfield=fields.ses3d_fields(datadir, setupfile, field_type = "velocity_snapshot");
+sfield=fields.ses3d_fields(datadir, setupfile, field_type = "velocity_snapshot")
 mfname='vz'
-# sfield.plot_snapshots_all6_mp( mfname, depth=0, valmin=-2e-7, valmax=2e-7, outdir='/lustre/janus_scratch/life9360/EA_snapshots_2016_all6', fprx='wavefield',
-#         iter0=30000, iterf=32000, diter=200, stations=False, res="i", proj='lambert', dpi=300, zoomin=2, geopolygons=basins,
+sfield.convert_to_hdf5('snap.h5', mfname, depth=0, )
+dset=h5fields.h5fields('snap.h5')
+dset.convert_to_vts(outdir='../vts_snap', component='vz')
+
+# # sfield.plot_snapshots_all6_mp( mfname, depth=0, valmin=-2e-7, valmax=2e-7, outdir='/lustre/janus_scratch/life9360/EA_snapshots_2016_all6', fprx='wavefield',
+# #         iter0=30000, iterf=32000, diter=200, stations=False, res="i", proj='lambert', dpi=300, zoomin=2, geopolygons=basins,
+# #             evlo=129.0, evla=41.306, vpadding=2.0, dt=0.05)
+# sfield.plot_snapshots_mp( mfname, depth=0, valmin=-2e-7, valmax=2e-7, outdir='/lustre/janus_scratch/life9360/EA_snapshots_2016_for_paper', fprx='wavefield',
+#         iter0=18000, iterf=24000, diter=200, stations=False, res="i", proj='lambert', dpi=300, zoomin=2, geopolygons=basins,
 #             evlo=129.0, evla=41.306, vpadding=2.0, dt=0.05)
-sfield.plot_snapshots_mp( mfname, depth=0, valmin=-2e-7, valmax=2e-7, outdir='/lustre/janus_scratch/life9360/EA_snapshots_2016_for_paper', fprx='wavefield',
-        iter0=18000, iterf=24000, diter=200, stations=False, res="i", proj='lambert', dpi=300, zoomin=2, geopolygons=basins,
-            evlo=129.0, evla=41.306, vpadding=2.0, dt=0.05)
-# sfield.check_model(mfname)
-# sfield.plot_depth_slice(mfname, 3., 2500, 3500,  stations=False, res="l", mapflag='global',\
-#     zoomin=2)
-evlo=129.0
-# evlo=129.029
-evla=41.306
+# # sfield.check_model(mfname)
+# # sfield.plot_depth_slice(mfname, 3., 2500, 3500,  stations=False, res="l", mapflag='global',\
+# #     zoomin=2)
+# evlo=129.0
+# # evlo=129.029
+# evla=41.306
 # sfield.plot_depth_padding_slice(mfname, 0., valmin=-1e-7, valmax=1e-7, dt=0.05, vpadding=2.7, 
 #        evlo=evlo, evla=evla, stations=False, res="l", proj='lambert', iteration=15000, zoomin=2.5)
 # sfield.plot_depth_padding_all6_slice(mfname, 0., valmin=-1e-7, valmax=1e-7, dt=0.05, vpadding=2.7, 
