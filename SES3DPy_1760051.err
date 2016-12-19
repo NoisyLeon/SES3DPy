@@ -1,5 +1,0 @@
-
-The following have been reloaded with a version change:
-  1) openmpi/openmpi-1.8.3_gcc-4.9.1 => openmpi/openmpi-1.8.2_intel-13.0.0
-
-/projects/life9360/anaconda2/lib/python2.7/site-packages/lasif-0.1.x-py2.7.egg/lasif/__init__.py:53: LASIFWarning: Could not determine LASIF version. Is git installed?
