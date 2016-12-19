@@ -5,16 +5,16 @@ import Qmodel
 import numpy as np
 
 def main():
-    # outdir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/INPUT'
-    outdir='/lustre/janus_scratch/life9360/ses3d_working_2016_US/INPUT'
+    outdir='/lustre/janus_scratch/life9360/ses3d_working_dir_2016/INPUT'
+    # outdir='/lustre/janus_scratch/life9360/ses3d_working_2016_US/INPUT'
     #########################
     # Qmodel
-    # Q_model=Qmodel.Qmodel( fmin=1.0/100., fmax=1/10.)
+    # Q_model=Qmodel.Qmodel( fmin=1.0/20., fmax=1/10.)
     # Q_model.Qdiscrete()
-    # # 
-    # # # D=np.array([1.684, 0.838, 1.357])
-    # # # tau_s=np.array([3.2, 17.692, 74.504])
-    # # # Q_model.plotQdiscrete( D=D, tau_s=tau_s )
+    # # # 
+    # # # # D=np.array([1.684, 0.838, 1.357])
+    # # # # tau_s=np.array([3.2, 17.692, 74.504])
+    # # # # Q_model.plotQdiscrete( D=D, tau_s=tau_s )
     # Q_model.plotQdiscrete()
     # Q_model.write(outdir=outdir)
     # return
@@ -22,22 +22,22 @@ def main():
     # #################
     # stations
     SLst=stations.StaLst()
-    # SLst.homo_stalst(minlat = 22.5, Nlat = 116, minlon=85.5, Nlon = 188, dlat=0.25, dlon=0.25, net='EA')
-    SLst.homo_stalst(minlat = 24.5, Nlat = 100, minlon=-119.5, Nlon = 156, dlat=0.25, dlon=0.25, net='US')
-    # SLst.write(outdir='/lustre/janus_scratch/life9360/ses3d_working_2016_US/INPUT')
+    SLst.homo_stalst(minlat = 22.5, Nlat = 116, minlon=85.5, Nlon = 188, dlat=0.25, dlon=0.25, net='EA')
+    # # SLst.homo_stalst(minlat = 24.5, Nlat = 100, minlon=-119.5, Nlon = 156, dlat=0.25, dlon=0.25, net='US')
+    # SLst.write(outdir=outdir)
     # return
     #################
     # events
-    # evlo=129.0
-    # evla=41.306
-    evlo=-100.0
-    evla=40.
+    evlo=129.0
+    evla=41.306
+    # evlo=-100.0
+    # evla=40.
     Mw=4.0
     evdp=1.0
     
     dt=0.05
-    num_timpstep=50000
-    fmin=1./100.
+    num_timpstep=30000
+    fmin=1./20.
     fmax=1./10.
     STF=events.STF()
     # STF.RickerIntSignal(dt=dt, npts=num_timpstep, fc=0.1)
@@ -52,20 +52,23 @@ def main():
     ##################
     #SES3D configuration
     
-    # minlat=22.
-    # maxlat=52.
-    # minlon=85.
-    # maxlon=133.
-    minlat=24.
-    maxlat=50.
-    minlon=-120.0
-    maxlon=-80.
+    minlat=22.
+    maxlat=52.
+    minlon=85.
+    maxlon=133.
+    # minlat=24.
+    # maxlat=50.
+    # minlon=-120.0
+    # maxlon=-80.
     
     zmin=0.
     zmax=200.
     
+    # nx_global=420
+    # ny_global=600
+    # nz_global=27
     nx_global=420
-    ny_global=600
+    ny_global=624
     nz_global=27
     
     px=10

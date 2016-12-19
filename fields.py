@@ -332,23 +332,21 @@ class ses3d_fields(object):
         dset.attrs.create(name = 'rotation_angle', data=self.rotangle, dtype='f')
         group   = dset.create_group( name = component ) 
         # - Loop over processor boxes and check if depth falls within the volume. ------------------
-        iterArr=np.arange(iter0 ,iterf+diter, diter)
+        iterArr=np.arange(iter0 ,iterf+diter, diter, dtype=int)
         for iteration in iterArr:
-            subgroup=group.create_group(name=str(iteration))
             if verbose: print 'Converting snapshot to hdf5 for iteration =',iteration
             try:
-                for p in range(n_procs):
+                for p in xrange(n_procs):
                     if (radius >= self.z[p,:].min()) & (radius <= self.z[p,:].max()):
                         # - Read this field and make lats & lons. ------------------------------------------
                         idz     = min(np.where(min(np.abs(self.z[p,:]-radius))==np.abs(self.z[p,:]-radius))[0])
                         field   = (self.read_single_box(component, p, iteration))[:,:,idz]
+                        subgroup=group.require_group(name=str(iteration))
                         subdset = subgroup.create_dataset(name=str(p), shape=field.shape, data=field)
                         subdset.attrs.create(name = 'theta', data=self.theta[p,:], dtype='f')
                         subdset.attrs.create(name = 'phi', data=self.phi[p,:], dtype='f')
-            except IOError:
-                print 'iteration:',iteration,' NOT exists!'
-                del subgroup
-        # - Plot stations if available. ------------------------------------------------------------
+            except IOError: print 'iteration:',iteration,' NOT exists!'
+        dset.close()
         return
     
     

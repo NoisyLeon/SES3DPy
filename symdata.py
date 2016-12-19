@@ -343,7 +343,7 @@ class ses3dtrace(obspy.core.trace.Trace):
             tempsac.stats.e=(nsam-1)*tempsac.stats.delta+tb
             sig=tempsac.data
         else:
-            sig=np.append(tempsac.data, np.zeros( float(32768-tempsac.data.size) ) )
+            sig=np.append(tempsac.data, np.zeros( 32768-tempsac.data.size, dtype=float ) )
             nsam=int( float (tempsac.stats.npts) )### for unknown reasons, this has to be done, nsam=int(tempsac.stats.npts)  won't work as an input for aftan
         dt=tempsac.stats.delta
         # Start to do aftan utilizing pyaftan
@@ -1055,7 +1055,9 @@ class ses3dASDF(pyasdf.ASDFDataSet):
         print 'End reading sac files!'
         return
     
-    def readtxt(self, datadir, stafile, channel='all', verbose=True, VminPadding=2.7, factor=1):
+    
+        
+    def readtxt(self, datadir, stafile, channel='all', verbose=True, VminPadding=2.7, factor=10):
         """ Read txt seismograms into ASDF dataset according to given station list
         ===================================================================================
         Input Parameters:
@@ -1070,26 +1072,21 @@ class ses3dASDF(pyasdf.ASDFDataSet):
         StaInv = SLst.GetInventory() 
         self.add_stationxml(StaInv)
         print 'Start reading txt files!'
-        # return
         dictchan={'BXZ':'z', 'BXE':'y', 'BXN':'x'}
         for sta in SLst.stations:
             ses3dST = ses3d_seismogram()
             if channel == 'all':
                 if ses3dST.read_stream(directory=datadir, staname=sta.network+'.'+sta.stacode):
-                    if verbose:
-                        print 'Reading txt file: '+sta.network+'.'+sta.stacode
+                    if verbose: print 'Reading txt file: '+sta.network+'.'+sta.stacode
                     instream=ses3dST.get_obspy_stream(stacode=sta.stacode, network=sta.network, VminPadding=VminPadding)
-                    if factor!=1:
-                        instream.decimate(factor=factor)
+                    if factor!=1: instream.decimate(factor=factor)
                     self.add_waveforms( instream , tag='ses3d_raw')
             else:
                 if ses3dST.read_trace(directory=datadir, staname=sta.network+'.'+sta.stacode, channel=dictchan[channel]):
-                    if verbose:
-                        print 'Reading txt file: '+sta.network+'.'+sta.stacode
+                    if verbose: print 'Reading txt file: '+sta.network+'.'+sta.stacode
                     inTr=ses3dST.get_obspy_trace(stacode=sta.stacode, network=sta.network,
                             channel=channel, VminPadding=VminPadding)
-                    if factor!=1:
-                        inTr.decimate(factor=factor)
+                    if factor!=1: inTr.decimate(factor=factor)
                     self.add_waveforms( inTr,tag='ses3d_raw')
         print 'End reading txt files!'
         return

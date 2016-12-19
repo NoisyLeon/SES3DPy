@@ -923,7 +923,8 @@ class Field2d(object):
         elif self.lonArr.shape[0]!=self.diffaArr.shape[0] or self.lonArr.shape[1]!=self.diffaArr.shape[1]:
             raise ValueError('Incompatible shape for deflection and lon/lat array!')
         x, y=m(self.lonArr, self.latArr)
-        cmap=pycpt.load.gmtColormap('./GMT_panoply.cpt')
+        # cmap=pycpt.load.gmtColormap('./GMT_panoply.cpt')
+        cmap='bwr'
         cmap =discrete_cmap(int(vmax-vmin)/4, cmap)
         im=m.pcolormesh(x, y, self.diffaArr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         cb = m.colorbar(im, "bottom", size="3%", pad='2%')

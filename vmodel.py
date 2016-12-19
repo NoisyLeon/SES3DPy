@@ -696,7 +696,6 @@ class ses3d_model(object):
                             #- Apply filter.
                             v_filtered[i,j,k]=np.sum(v[i-dn:i+dn,j-dn:j+dn,k]*GG*dV)
         return
-            # self.m[n].v=v_filtered
 
     def convert_to_vts(self, outdir, modelname, pfx='', verbose=False, unit=True):
         """ Convert ses3d model to vts format for plotting with Paraview, VisIt
