@@ -1800,6 +1800,38 @@ class ses3dASDF(pyasdf.ASDFDataSet):
         sacTr.write(outsacfname)
         return
     
+    def get_stream(self, staid=None, lon=None, lat=None, outdir='.', SLst=None ):
+        if staid==None and (lon==None or lat==None): raise ValueError('Error Input')
+        evlo=self.events.events[0].origins[0].longitude
+        evla=self.events.events[0].origins[0].latitude
+        if staid!=None:
+            st=self.waveforms[staid].ses3d_raw
+            lat, elev, lon=self.waveforms[staid].coordinates.values()
+        elif isinstance(SLst, stations.StaLst):
+            for sta in SLst.stations:
+                if sta.lon!=lon or sta.lat!=lat:
+                    continue
+                else:
+                    staid=sta.network+'.'+sta.stacode
+                    st=self.waveforms[staid].ses3d_raw
+                    break
+        else:
+            for staid in self.waveforms.list():
+                # Get data from ASDF dataset
+                subdset = self.waveforms[staid]
+                stla, elev, stlo=subdset.coordinates.values()
+                if stlo!=lon or stla!=lat:
+                    continue
+                else:
+                    st=self.waveforms[staid].ses3d_raw
+                    break
+        for tr in st:
+            tr.stats.coordinates = AttribDict({
+                'latitude': lat,
+                'elevation': lon,
+                'longitude': 0.0})
+        return st
+    
     def get_trace(self, staid=None, lon=None, lat=None, outdir='.', SLst=None, channel='BXZ'):
         if staid==None and (lon==None or lat==None):
             raise ValueError('Error Input')

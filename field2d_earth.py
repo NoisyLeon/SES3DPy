@@ -44,6 +44,14 @@ def discrete_cmap(N, base_cmap=None):
     cmap_name = base.name + str(N)
     return base.from_list(cmap_name, color_list, N)
 
+def _write_txt(fname, outlon, outlat, outZ):
+    outArr=np.append(outlon, outlat)
+    outArr=np.append(outArr, outZ)
+    outArr=outArr.reshape((3,outZ.size))
+    outArr=outArr.T
+    np.savetxt(fname, outArr, fmt='%g')
+    return
+
 class Field2d(object):
     """
     An object to analyze 2D spherical field data on Earth
@@ -60,25 +68,24 @@ class Field2d(object):
     ===========================================================================
     """
     def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat, period, fieldtype='Tph'):
-        self.Nlon=round((maxlon-minlon)/dlon)+1
-        self.Nlat=round((maxlat-minlat)/dlat)+1
-        self.dlon=dlon
-        self.dlat=dlat
-        self.lon=np.arange(self.Nlon)*self.dlon+minlon
-        self.lat=np.arange(self.Nlat)*self.dlat+minlat
+        self.Nlon   = int(round((maxlon-minlon)/dlon)+1)
+        self.Nlat   = int(round((maxlat-minlat)/dlat)+1)
+        self.dlon   = dlon
+        self.dlat   = dlat
+        self.lon    = np.arange(self.Nlon)*self.dlon+minlon
+        self.lat    = np.arange(self.Nlat)*self.dlat+minlat
         self.lonArr, self.latArr = np.meshgrid(self.lon, self.lat)
-        self.minlon=minlon
-        self.maxlon=self.lon.max()
-        self.minlat=minlat
-        self.maxlat=self.lat.max()
+        self.minlon = minlon
+        self.maxlon = self.lon.max()
+        self.minlat = minlat
+        self.maxlat = self.lat.max()
+        self.period = period
         self._get_dlon_dlat_km()
-        self.period=period
-        self.fieldtype=fieldtype
-        self.Zarr=np.zeros((self.Nlat, self.Nlon))
+        self.fieldtype = fieldtype
+        self.Zarr   = np.zeros((self.Nlat, self.Nlon))
         return
     
-    def copy(self):
-        return copy.deepcopy(self)
+    def copy(self): return copy.deepcopy(self)
     
     def _get_dlon_dlat_km(self):
         """Get longitude and latitude interval in km
@@ -110,24 +117,23 @@ class Field2d(object):
                         self.evla = float(evlastr.split('=')[1])
         except:
             Inarray=np.load(fname)
-        self.lonArrIn=Inarray[:,0]
-        self.latArrIn=Inarray[:,1]
-        self.ZarrIn=Inarray[:,2]
+        self.lonArrIn   = Inarray[:,0]
+        self.latArrIn   = Inarray[:,1]
+        self.ZarrIn     = Inarray[:,2]
         return
     
     def add_noise(self, sigma=0.5):
         """Add Gaussian noise with standard deviation = sigma to the input data
         """
-        for i in xrange(self.ZarrIn.size):
-            self.ZarrIn[i]=self.ZarrIn[i] + random.gauss(0, sigma)
+        for i in xrange(self.ZarrIn.size): self.ZarrIn[i]=self.ZarrIn[i] + random.gauss(0, sigma)
         return
     
     def load_field(self, inField):
         """Load field data from an input object
         """
-        self.lonArrIn=inField.lonArr
-        self.latArrIn=inField.latArr
-        self.ZarrIn=inField.Zarr
+        self.lonArrIn   = inField.lonArr
+        self.latArrIn   = inField.latArr
+        self.ZarrIn     = inField.Zarr
         return
     
     def write(self, fname, fmt='npy'):
@@ -148,29 +154,28 @@ class Field2d(object):
     def write_dbase(self, outdir, gmt=False):
         """Write field data to an output directory
         """
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir)
-        outfdiffa=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_diffa.lst'
-        outffield=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_field.lst'
-        outfappV=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_appV.lst'
-        outflplc=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_lplc.lst'
-        outfreason=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_reason.lst'
-        outfgrad=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_grad.lst'
-        outfdist=outdir+'/'+self.fieldtype+'_'+str(self.period)+'_dist.lst'
+        if not os.path.isdir(outdir): os.makedirs(outdir)
+        outfdiffa   = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_diffa.lst'
+        outffield   = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_field.lst'
+        outfappV    = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_appV.lst'
+        outflplc    = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_lplc.lst'
+        outfreason  = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_reason.lst'
+        outfgrad    = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_grad.lst'
+        outfdist    = outdir+'/'+self.fieldtype+'_'+str(self.period)+'_dist.lst'
         if gmt:
             lonArr=self.lonArr[self.reason_n==0]
             latArr=self.latArr[self.reason_n==0]
-            self._write_txt(fname=outffield, outlon=lonArr, outlat=latArr, outZ=self.Zarr[self.reason_n==0])
+            _write_txt(fname=outffield, outlon=lonArr, outlat=latArr, outZ=self.Zarr[self.reason_n==0])
             try:
-                self._write_txt(fname=outfdiffa, outlon=lonArr, outlat=latArr, outZ=self.diffaArr[self.reason_n==0])
+                _write_txt(fname=outfdiffa, outlon=lonArr, outlat=latArr, outZ=self.diffaArr[self.reason_n==0])
             except:
                 pass
             try:
-                self._write_txt(fname=outfappV, outlon=lonArr, outlat=latArr, outZ=self.appV[self.reason_n==0])
+                _write_txt(fname=outfappV, outlon=lonArr, outlat=latArr, outZ=self.appV[self.reason_n==0])
             except:
                 pass
             try:
-                self._write_txt(fname=outflplc, outlon=lonArr, outlat=latArr, outZ=self.lplc[self.reason_n==0])
+                _write_txt(fname=outflplc, outlon=lonArr, outlat=latArr, outZ=self.lplc[self.reason_n==0])
             except:
                 pass
             try:
@@ -183,27 +188,27 @@ class Field2d(object):
             except:
                 pass
             try:
-                self._write_txt(fname=outfdist, outlon=lonArr, outlat=latArr, outZ=self.distArr[self.reason_n==0])
+                _write_txt(fname=outfdist, outlon=lonArr, outlat=latArr, outZ=self.distArr[self.reason_n==0])
             except:
                 pass
         else:
             lonArr=self.lonArr
             latArr=self.latArr
-            self._write_txt(fname=outffield, outlon=lonArr, outlat=latArr, outZ=self.Zarr)
+            _write_txt(fname=outffield, outlon=lonArr, outlat=latArr, outZ=self.Zarr)
             try:
-                self._write_txt(fname=outfdiffa, outlon=lonArr, outlat=latArr, outZ=self.diffaArr)
+                _write_txt(fname=outfdiffa, outlon=lonArr, outlat=latArr, outZ=self.diffaArr)
             except:
                 pass
             try:
-                self._write_txt(fname=outfappV, outlon=lonArr, outlat=latArr, outZ=self.appV)
+                _write_txt(fname=outfappV, outlon=lonArr, outlat=latArr, outZ=self.appV)
             except:
                 pass
             try:
-                self._write_txt(fname=outflplc, outlon=lonArr, outlat=latArr, outZ=self.lplc)
+                _write_txt(fname=outflplc, outlon=lonArr, outlat=latArr, outZ=self.lplc)
             except:
                 pass
             try:
-                self._write_txt(fname=outfreason, outlon=lonArr, outlat=latArr, outZ=self.reason_n)
+                _write_txt(fname=outfreason, outlon=lonArr, outlat=latArr, outZ=self.reason_n)
             except:
                 pass
             try:
@@ -216,7 +221,7 @@ class Field2d(object):
             except:
                 pass
             try:
-                self._write_txt(fname=outfdist, outlon=lonArr, outlat=latArr, outZ=self.distArr)
+                _write_txt(fname=outfdist, outlon=lonArr, outlat=latArr, outZ=self.distArr)
             except:
                 pass
         return
@@ -224,15 +229,15 @@ class Field2d(object):
     def read_dbase(self, datadir):
         """Read field data from an input directory
         """
-        infdiffa=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_diffa.lst'
-        inffield=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_field.lst'
-        infappV=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_appV.lst'
-        inflplc=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_lplc.lst'
-        infreason=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_reason.lst'
-        infgrad=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_grad.lst'
-        infdist=datadir+'/'+self.fieldtype+'_'+str(self.period)+'_dist.lst'
-        inArr=np.loadtxt(inffield)
-        Zarr=inArr[:,2]
+        infdiffa    = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_diffa.lst'
+        inffield    = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_field.lst'
+        infappV     = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_appV.lst'
+        inflplc     = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_lplc.lst'
+        infreason   = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_reason.lst'
+        infgrad     = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_grad.lst'
+        infdist     = datadir+'/'+self.fieldtype+'_'+str(self.period)+'_dist.lst'
+        inArr       = np.loadtxt(inffield)
+        Zarr        = inArr[:,2]
         if Zarr.size==(self.Nlat-1)*(self.Nlon-1):
             self.cut_edge(1,1)
         elif Zarr.size==(self.Nlat-4)*(self.Nlon-4):
@@ -267,16 +272,6 @@ class Field2d(object):
             inArr=np.loadtxt(infdist)
             self.distArr=inArr[:,2]
             self.distArr=self.distArr.reshape(self.Nlat, self.Nlon)
-        
-        return
-        
-    
-    def _write_txt(self, fname, outlon, outlat, outZ):
-        outArr=np.append(outlon, outlat)
-        outArr=np.append(outArr, outZ)
-        outArr=outArr.reshape((3,outZ.size))
-        outArr=outArr.T
-        np.savetxt(fname, outArr, fmt='%g')
         return
     
     def np2ma(self):
@@ -338,24 +333,20 @@ class Field2d(object):
         nlon, nlon  - number of edge point in longitude/latitude to be cutted
         =======================================================================================
         """
-        self.Nlon=self.Nlon-2*nlon
-        self.Nlat=self.Nlat-2*nlat
-        self.minlon=self.minlon + nlon*self.dlon
-        self.maxlon=self.maxlon - nlon*self.dlon
-        self.minlat=self.minlat + nlat*self.dlat
-        self.maxlat=self.maxlat - nlat*self.dlat
-        self.lon=np.arange(self.Nlon)*self.dlon+self.minlon
-        self.lat=np.arange(self.Nlat)*self.dlat+self.minlat
+        self.Nlon   = self.Nlon-2*nlon
+        self.Nlat   = self.Nlat-2*nlat
+        self.minlon = self.minlon + nlon*self.dlon
+        self.maxlon = self.maxlon - nlon*self.dlon
+        self.minlat = self.minlat + nlat*self.dlat
+        self.maxlat = self.maxlat - nlat*self.dlat
+        self.lon    = np.arange(self.Nlon)*self.dlon+self.minlon
+        self.lat    = np.arange(self.Nlat)*self.dlat+self.minlat
         self.lonArr, self.latArr = np.meshgrid(self.lon, self.lat)
-        self.Zarr=self.Zarr[nlat:-nlat, nlon:-nlon]
-        try:
-            self.reason_n=self.reason_n[nlat:-nlat, nlon:-nlon]
-        except:
-            pass
-        try:
-            self.appV=self.appV[nlat:-nlat, nlon:-nlon]
-        except:
-            pass
+        self.Zarr   = self.Zarr[nlat:-nlat, nlon:-nlon]
+        try: self.reason_n=self.reason_n[nlat:-nlat, nlon:-nlon]
+        except: pass
+        try: self.appV=self.appV[nlat:-nlat, nlon:-nlon]
+        except: pass
         self._get_dlon_dlat_km()
         return
     
@@ -407,13 +398,15 @@ class Field2d(object):
         self.appV = 1./slowness
         return
     
-    def Laplacian(self, method='convolve', order=4, verbose=False):
+    def Laplacian(self, method='green', order=4, verbose=False):
         """Compute Laplacian of the field
         =============================================================================================================
         Input Parameters:
         edge_order  - edge_order : {1, 2}, optional, only has effect when method='default'
                         Gradient is calculated using Nth order accurate differences at the boundaries
-        method      - method: 'default' : use numpy.gradient 'convolve': use convolution
+        method      - method: 'default' : use numpy.gradient
+                              'convolve': use convolution
+                              'green'   : use Green's theorem( 2D Gauss's theorem )
         order       - order of finite difference scheme, only has effect when method='convolve'
         =============================================================================================================
         """
@@ -441,11 +434,22 @@ class Field2d(object):
                 diff2_lat=convolve(Zarr, lat_diff2_weight_6)/dlat_km/dlat_km
             self.lplc=diff2_lon+diff2_lat
             self.lplc=self.lplc[1:-1, 1:-1]
+        elif method=='green':
+            try:
+                grad_y=self.grad[0]; grad_x=self.grad[1]
+            except:
+                self.gradient('default'); self.cut_edge(1,1)
+                grad_y=self.grad[0]; grad_x=self.grad[1]
+            grad_xp=grad_x[1:-1, 2:];  grad_xn=grad_x[1:-1, :-2]
+            grad_yp=grad_y[2:, 1:-1];  grad_yn=grad_y[:-2, 1:-1]
+            dlat_km=self.dlat_kmArr[1:-1, 1:-1]; dlon_km=self.dlon_kmArr[1:-1, 1:-1]
+            loopsum=(grad_xp - grad_xn)*dlat_km + (grad_yp - grad_yn)*dlon_km
+            area=dlat_km*dlon_km
+            lplc = loopsum/area
+            self.lplc=lplc
         if verbose:
             print 'max lplc:',self.lplc.max(), 'min lplc:',self.lplc.min()
         return
-    
-    
     
     def interp_surface(self, workingdir, outfname, tension=0.0):
         """Interpolate input data to grid point with gmt surface command
@@ -499,21 +503,21 @@ class Field2d(object):
         self.Laplacian(method='convolve', order=4)
         self.cut_edge(1,1)
         # quality control
-        LonLst=self.lonArr.reshape(self.lonArr.size)
-        LatLst=self.latArr.reshape(self.latArr.size)
-        TLst=self.Zarr.reshape(self.Zarr.size)
-        lplc = self.lplc.reshape(self.lplc.size)
-        index = np.where((lplc>-threshold)*(lplc<threshold))[0]
-        LonLst=LonLst[index]
-        LatLst=LatLst[index]
-        TLst=TLst[index]
+        LonLst  = self.lonArr.reshape(self.lonArr.size)
+        LatLst  = self.latArr.reshape(self.latArr.size)
+        TLst    = self.Zarr.reshape(self.Zarr.size)
+        lplc    = self.lplc.reshape(self.lplc.size)
+        index   = np.where((lplc>-threshold)*(lplc<threshold))[0]
+        LonLst  = LonLst[index]
+        LatLst  = LatLst[index]
+        TLst    = TLst[index]
         # output to txt file
-        outfname=workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1.lst'
-        TfnameHD=outfname+'.HD'
-        self._write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=TLst)
+        outfname= workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+        TfnameHD= outfname+'.HD'
+        _write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=TLst)
         # interpolate with gmt surface
-        tempGMT=workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
-        grdfile=workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1.grd'
+        tempGMT = workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
+        grdfile = workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1.grd'
         with open(tempGMT,'wb') as f:
             REG='-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmtset MAP_FRAME_TYPE fancy \n')
@@ -547,46 +551,45 @@ class Field2d(object):
         # Read data,
         # v1: data that pass check_curvature criterion
         # v1HD and v1HD02: interpolated v1 data with tension = 0. and 0.2
-        fnamev1=workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1.lst'
-        fnamev1HD=fnamev1+'.HD'
-        fnamev1HD02=fnamev1HD+'_0.2'
-        InarrayV1=np.loadtxt(fnamev1)
-        loninV1=InarrayV1[:,0]
-        latinV1=InarrayV1[:,1]
-        fieldin=InarrayV1[:,2]
-        Inv1HD=np.loadtxt(fnamev1HD)
-        lonv1HD=Inv1HD[:,0]
-        latv1HD=Inv1HD[:,1]
-        fieldv1HD=Inv1HD[:,2]
-        Inv1HD02=np.loadtxt(fnamev1HD02)
-        lonv1HD02=Inv1HD02[:,0]
-        latv1HD02=Inv1HD02[:,1]
-        fieldv1HD02=Inv1HD02[:,2]
+        fnamev1     = workingdir+'/'+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+        fnamev1HD   = fnamev1+'.HD'
+        fnamev1HD02 = fnamev1HD+'_0.2'
+        InarrayV1   = np.loadtxt(fnamev1)
+        loninV1     = InarrayV1[:,0]
+        latinV1     = InarrayV1[:,1]
+        fieldin     = InarrayV1[:,2]
+        Inv1HD      = np.loadtxt(fnamev1HD)
+        lonv1HD     = Inv1HD[:,0]
+        latv1HD     = Inv1HD[:,1]
+        fieldv1HD   = Inv1HD[:,2]
+        Inv1HD02    = np.loadtxt(fnamev1HD02)
+        lonv1HD02   = Inv1HD02[:,0]
+        latv1HD02   = Inv1HD02[:,1]
+        fieldv1HD02 = Inv1HD02[:,2]
         # Set field value to be zero if there is large difference between v1HD and v1HD02
-        diffArr = fieldv1HD-fieldv1HD02
-        fieldArr=fieldv1HD*((diffArr<2.)*(diffArr>-2.)) 
-        fieldArr = (fieldArr.reshape(self.Nlat, self.Nlon))[::-1,:]
+        diffArr     = fieldv1HD-fieldv1HD02
+        fieldArr    = fieldv1HD*((diffArr<2.)*(diffArr>-2.)) 
+        fieldArr    = (fieldArr.reshape(self.Nlat, self.Nlon))[::-1,:]
         # reason_n -> 0: accepted point 1: data point the has large difference between v1HD and v1HD02
         # 2: data point that does not have near neighbor points at all E/W/N/S directions
-        reason_n=np.ones(fieldArr.size)
-        reason_n1=reason_n*(diffArr>2.)
-        reason_n2=reason_n*(diffArr<-2.)
-        reason_n=reason_n1+reason_n2
-        reason_n = (reason_n.reshape(self.Nlat, self.Nlon))[::-1,:]
+        reason_n    = np.ones(fieldArr.size)
+        reason_n1   = reason_n*(diffArr>2.)
+        reason_n2   = reason_n*(diffArr<-2.)
+        reason_n    = reason_n1+reason_n2
+        reason_n    = (reason_n.reshape(self.Nlat, self.Nlon))[::-1,:]
         # Nested loop, may need modification to speed the code up
         if nearneighbor:
             print 'Start near neighbor quality control checking'
             for ilat in xrange(self.Nlat):
                 for ilon in xrange(self.Nlon):
-                    if reason_n[ilat, ilon]==1:
-                        continue
-                    lon=self.lon[ilon]
-                    lat=self.lat[ilat]
-                    dlon_km=self.dlon_km[ilat]
-                    dlat_km=self.dlat_km[ilat]
-                    difflon=abs(loninV1-lon)/self.dlon*dlon_km
-                    difflat=abs(latinV1-lat)/self.dlat*dlat_km
-                    index=np.where((difflon<cdist)*(difflat<cdist))[0]
+                    if reason_n[ilat, ilon]==1: continue
+                    lon     = self.lon[ilon]
+                    lat     = self.lat[ilat]
+                    dlon_km = self.dlon_km[ilat]
+                    dlat_km = self.dlat_km[ilat]
+                    difflon = abs(loninV1-lon)/self.dlon*dlon_km
+                    difflat = abs(latinV1-lat)/self.dlat*dlat_km
+                    index   = np.where((difflon<cdist)*(difflat<cdist))[0]
                     marker_EN=np.zeros((2,2))
                     marker_nn=4
                     tflag = False
@@ -620,9 +623,9 @@ class Field2d(object):
         self.gradient('default')
         self.cut_edge(1,1)
         # if one field point has zero value, reason_n for four near neighbor points will all be set to 4
-        index0=np.where(self.Zarr==0)
-        ilatArr=index0[0]+1
-        ilonArr=index0[1]+1
+        index0  = np.where(self.Zarr==0)
+        ilatArr = index0[0]+1
+        ilonArr = index0[1]+1
         reason_n[ilatArr+1, ilonArr]=4
         reason_n[ilatArr-1, ilonArr]=4
         reason_n[ilatArr, ilonArr+1]=4
@@ -635,30 +638,30 @@ class Field2d(object):
             reason_n[slowness>0.6]=3
             reason_n[slowness<0.2]=3
         print 'Computing deflections'
-        indexvalid=np.where(reason_n==0)
-        diffaArr=np.zeros(reason_n.shape)
-        latinArr=self.lat[indexvalid[0]]
-        loninArr=self.lon[indexvalid[1]]
-        evloArr=np.ones(loninArr.size)*evlo
-        evlaArr=np.ones(loninArr.size)*evla
+        indexvalid  = np.where(reason_n==0)
+        diffaArr    = np.zeros(reason_n.shape)
+        latinArr    = self.lat[indexvalid[0]]
+        loninArr    = self.lon[indexvalid[1]]
+        evloArr     = np.ones(loninArr.size)*evlo
+        evlaArr     = np.ones(loninArr.size)*evla
         g = Geod(ellps='WGS84')
         az, baz, distevent = g.inv(loninArr, latinArr, evloArr, evlaArr)
-        distevent=distevent/1000.
-        az = az + 180.
-        az = 90.-az
-        baz = 90.-baz
-        az[az>180.]=az[az>180.] - 360.
-        az[az<-180.]=az[az<-180.] + 360.
-        baz[baz>180.]=baz[baz>180.] - 360.
-        baz[baz<-180.]=baz[baz<-180.] + 360.
+        distevent       = distevent/1000.
+        az              = az + 180.
+        az              = 90.-az
+        baz             = 90.-baz
+        az[az>180.]     = az[az>180.] - 360.
+        az[az<-180.]    = az[az<-180.] + 360.
+        baz[baz>180.]   = baz[baz>180.] - 360.
+        baz[baz<-180.]  = baz[baz<-180.] + 360.
         diffaArr[indexvalid[0], indexvalid[1]] = \
             self.proAngle[indexvalid[0], indexvalid[1]] - az
         # if epicentral distance is too small, reason_n will be set to 5, and diffaArr will be 0.
         tempArr = diffaArr[indexvalid[0], indexvalid[1]]
         tempArr[distevent<cdist+50.] = 0.
         diffaArr[indexvalid[0], indexvalid[1]] = tempArr
-        diffaArr[diffaArr>180.]=diffaArr[diffaArr>180.]-360.
-        diffaArr[diffaArr<-180.]=diffaArr[diffaArr<-180.]+360.
+        diffaArr[diffaArr>180.] = diffaArr[diffaArr>180.]-360.
+        diffaArr[diffaArr<-180.]= diffaArr[diffaArr<-180.]+360.
         tempArr = reason_n[indexvalid[0], indexvalid[1]]
         tempArr[distevent<cdist+50.] = 5
         reason_n[indexvalid[0], indexvalid[1]] = tempArr
@@ -680,8 +683,6 @@ class Field2d(object):
         if projection=='merc':
             m=Basemap(projection='merc', llcrnrlat=self.minlat-5., urcrnrlat=self.maxlat+5., llcrnrlon=self.minlon-5.,
                       urcrnrlon=self.maxlon+5., lat_ts=20, resolution=resolution)
-            # m.drawparallels(np.arange(self.minlat,self.maxlat,self.dlat), labels=[1,0,0,1])
-            # m.drawmeridians(np.arange(self.minlon,self.maxlon,self.dlon), labels=[1,0,0,1])
             m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
             m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
             m.drawstates(color='g', linewidth=2.)
@@ -695,8 +696,6 @@ class Field2d(object):
             m = Basemap(projection='ortho', lon_0=self.minlon, lat_0=self.minlat, resolution=resolution,\
                 llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
-            # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
-            # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
             distEW, az, baz=obspy.geodetics.gps2dist_azimuth(self.minlat, self.minlon,
@@ -707,15 +706,11 @@ class Field2d(object):
                 lat_1=self.minlat, lat_2=self.maxlat, lon_0=lon_centre, lat_0=lat_centre+1)
             m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1, dashes=[2,2], labels=[1,1,0,0], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
-            # m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=0.5, dashes=[2,2], labels=[1,0,0,0], fontsize=5)
-            # m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=0.5, dashes=[2,2], labels=[0,0,0,1], fontsize=5)
         m.drawcoastlines(linewidth=1.0)
         m.drawcountries(linewidth=1.)
-        
-        # m.drawmapboundary(fill_color=[1.0,1.0,1.0])
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
-        # m.drawlsmask(land_color='0.8', ocean_color='#99ffff')
         m.drawmapboundary(fill_color="white")
+        m.drawstates()
         try:
             geopolygons.PlotPolygon(inbasemap=m)
         except:
@@ -785,16 +780,16 @@ class Field2d(object):
             im=m.pcolormesh(x, y, self.Zarr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
             cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=np.arange(20)*0.1+2.5)
             ###
-            fname='sw_mags_10_4693783.xy'
-            lonArr=np.array([]); latArr=np.array([]); msArr=np.array([])
-            with open(fname, 'rb') as f:
-                for line in f.readlines():
-                    cline=line.split()
-                    lon=float(cline[4]); lat=float(cline[5]); ms=float(cline[7])
-                    if lon > 120 and lat >30 : continue
-                    lonArr=np.append(lonArr, lon); latArr=np.append(latArr, lat); msArr=np.append(msArr, ms)
-            xr, yr=m(lonArr, latArr)
-            m.scatter(xr, yr, marker='^', s=300, c=msArr, cmap=cmap, vmin=vmin, vmax=vmax)
+            # # # fname='sw_mags_10_4693783.xy'
+            # # # lonArr=np.array([]); latArr=np.array([]); msArr=np.array([])
+            # # # with open(fname, 'rb') as f:
+            # # #     for line in f.readlines():
+            # # #         cline=line.split()
+            # # #         lon=float(cline[4]); lat=float(cline[5]); ms=float(cline[7])
+            # # #         if lon > 120 and lat >30 : continue
+            # # #         lonArr=np.append(lonArr, lon); latArr=np.append(latArr, lat); msArr=np.append(msArr, ms)
+            # # # xr, yr=m(lonArr, latArr)
+            # # # m.scatter(xr, yr, marker='^', s=300, c=msArr, cmap=cmap, vmin=vmin, vmax=vmax)
             ###
         else:
             im=m.pcolormesh(x, y, self.Zarr, cmap='gist_ncar_r', shading='gouraud', vmin=vmin, vmax=vmax)
@@ -879,7 +874,7 @@ class Field2d(object):
             plt.show()
         return
     
-    def plot_CorrV(self, infield, projection='lambert', contour=False, geopolygons=None, vmin=None, vmax=None, period=10., showfig=True):
+    def plot_CorrV(self, infield, cmap='cv', projection='lambert', contour=False, geopolygons=None, vmin=None, vmax=None, period=10., showfig=True, outfname=None):
         """Plot data with contour
         """
         m=self._get_basemap(projection=projection, geopolygons=geopolygons)
@@ -895,9 +890,14 @@ class Field2d(object):
             appV=infield.appV[1:-1,1:-1]
             lplcC=1./np.sqrt(1./appV**2 - lplcC)
         lplcC=ma.masked_array(lplcC, mask=np.zeros(self.Zarr.shape) )
-        lplcC.mask[infield.reason_n!=0]=1
+        lplcC.mask[self.reason_n!=0]=1
+        # print self.reason_n.shape, lplcC.shape, self.lonArr.shape
         x, y=m(self.lonArr, self.latArr)
-        cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        if cmap == 'lasif':
+            cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        elif cmap == 'cv':
+            try: cmap=pycpt.load.gmtColormap('cv.cpt')
+            except: cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
         im=m.pcolormesh(x, y, lplcC, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         try:
             vrange=vmin+np.arange((vmax-vmin)/0.1+1)*0.1
@@ -911,7 +911,11 @@ class Field2d(object):
         # cb.set_label(r"$\frac{\mathrm{km}}{\mathrm{s}}$", fontsize=8, rotation=0)
         if showfig:
             plt.show()
-        return
+        if outfname!= None:
+            lonArr=self.lonArr[self.reason_n==0]
+            latArr=self.latArr[self.reason_n==0]
+            _write_txt(fname=outfname, outlon=lonArr, outlat=latArr, outZ=ma.getdata(lplcC[self.reason_n==0]))    
+        return 
     
     
     def plot_diffa(self, projection='lambert', prop=True, geopolygons=None, cmap='seismic', vmin=-20, vmax=20, showfig=True):
@@ -961,12 +965,16 @@ class Field2d(object):
             plt.show()
         return
     
-    def plot_appV(self, projection='lambert', geopolygons=None, showfig=True, vmin=None, vmax=None):
+    def plot_appV(self, projection='lambert', cmap='cv', geopolygons=None, showfig=True, vmin=None, vmax=None):
         """
         """
         m=self._get_basemap(projection=projection, geopolygons=geopolygons)
         x, y=m(self.lonArr, self.latArr)
-        cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        if cmap == 'lasif':
+            cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
+        elif cmap == 'cv':
+            try: cmap=pycpt.load.gmtColormap('cv.cpt')
+            except: cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
         im=m.pcolormesh(x, y, self.appV, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         # ###
         # stlaLst=np.arange(5)*0.25+33.25
@@ -1132,53 +1140,6 @@ class Field2d(object):
         if showfig:
             plt.show()
         return
-
-        
-    def fftDiff(self, m, n):
-        """Compute derivative with FFT
-        """
-        try:
-            h = np.fft.fft2(self.Zarr)
-        except:
-            h = np.fft.fft2(self.Zarr)
-        hshift = np.fft.fftshift(h)
-        Nlon=self.Nlon
-        Nlat=self.Nlat
-        if Nlon % 2 ==0:
-            u=np.arange(Nlon) - Nlon/2.
-        else:
-            u=np.arange(Nlon) - (Nlon-1)/2.
-        if Nlat % 2 ==0:
-            v=np.arange(Nlat) - Nlat/2.
-        else:
-            v=np.arange(Nlat) - (Nlat-1)/2.
-        U,V=np.meshgrid(u,v)
-        hdiff =  ((1j*2*np.pi*U/Nlon)**m)*((1j*2*np.pi*V/Nlat)**n) * hshift
-        out_diff = np.real( np.fft.ifft2( np.fft.ifftshift(hdiff) ) )
-        out_diff = out_diff[:self.Nlat, :self.Nlon]/(self.dlon_kmArr**m)/(self.dlat_kmArr**n)
-        return out_diff
-    
-    def fftDiff2(self, m, n):
-        """Compute derivative with FFT, extend grid number to be power of 2
-        """
-        Nlon=1<<(self.Nlon-1).bit_length()
-        Nlat=1<<(self.Nlat-1).bit_length()
-        # h = np.fft.fft2(self.Zarr, s=[Nlon, Nlat] )
-        h = np.fft.fft2(ma.getdata(self.Zarr), s=[Nlon, Nlat] )
-        hshift = np.fft.fftshift(h)
-        u = np.arange(Nlon) - Nlon/2.
-        v = np.arange(Nlat) - Nlat/2.
-        U,V = np.meshgrid(u,v)
-        hdiff = ( (1j*2*np.pi*U/Nlon)**m )*( (1j*2*np.pi*V/Nlat)**n ) * hshift
-        out_diff = np.real( np.fft.ifft2( np.fft.ifftshift(hdiff) ) )
-        out_diff = out_diff[:self.Nlat, :self.Nlon]/(self.dlon_kmArr**m)/(self.dlat_kmArr**n)
-        return out_diff
-    
-    
-            
-                
-                    
-    
 
     
 

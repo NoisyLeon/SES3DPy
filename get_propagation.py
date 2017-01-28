@@ -5,7 +5,7 @@ import obspy.signal.filter
 import numpy as np
 import matplotlib.pyplot as plt
 stafile='/work3/leon/ASDF_data/recfile_1'
-dset = symdata.ses3dASDF('/work3/leon/ASDF_data/ses3d_2016.h5')
+dset = symdata.ses3dASDF('/work3/leon/ASDF_data/ses3d_2016_10sec_3comp.h5')
 
 degree_sign= u'\N{DEGREE SIGN}'
 evlo=129.029
